@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Infotickets Panel — Ticombo → Shopify</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
+  header { background: #1d1d1f; color: white; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header span { font-size: 13px; opacity: 0.5; }
+  .container { max-width: 960px; margin: 32px auto; padding: 0 24px; }
+  .card { background: white; border-radius: 12px; border: 1px solid #e5e5e7; padding: 24px; margin-bottom: 20px; }
+  .card-title { font-size: 13px; font-weight: 600; color: #6e6e73; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 12px; color: #6e6e73; }
+  .field input { border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; }
+  .field input:focus { border-color: #0071e3; }
+  .search-row { display: flex; gap: 10px; margin-bottom: 12px; }
+  .search-row input { flex: 1; border: 1px solid #d2d2d7; border-radius: 8px; padding: 10px 14px; font-size: 15px; outline: none; }
+  .search-row input:focus { border-color: #0071e3; }
+  button { border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 500; padding: 10px 20px; transition: opacity .15s; }
+  button:hover { opacity: .85; }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-primary { background: #0071e3; color: white; }
+  .btn-success { background: #34c759; color: white; }
+  .btn-danger { background: #ff3b30; color: white; padding: 6px 10px; font-size: 12px; }
+  .btn-sm { padding: 6px 12px; font-size: 13px; }
+  .event-item { border: 1px solid #e5e5e7; border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; transition: background .1s; }
+  .event-item:hover { background: #f5f5f7; }
+  .event-item.selected { border-color: #34c759; background: #f0fff4; }
+  .event-name { font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .event-meta { font-size: 12px; color: #6e6e73; margin-top: 3px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; font-weight: 500; }
+  .badge-music { background: #e8f4fd; color: #0071e3; }
+  .badge-sports { background: #fff3cd; color: #856404; }
+  .badge-other { background: #f0f0f0; color: #6e6e73; }
+  .check-icon { font-size: 20px; color: #34c759; flex-shrink: 0; }
+  .plus-icon { font-size: 20px; color: #c7c7cc; flex-shrink: 0; }
+  .results-list { max-height: 400px; overflow-y: auto; }
+  .loading { text-align: center; padding: 32px; color: #6e6e73; font-size: 14px; }
+  .error { background: #fff2f2; border: 1px solid #ffb3b3; border-radius: 8px; padding: 12px 16px; color: #ff3b30; font-size: 13px; margin-top: 8px; }
+  .success { background: #f0fff4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; color: #16a34a; font-size: 13px; margin-top: 8px; }
+  .tip { background: #f0f7ff; border-left: 3px solid #0071e3; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #0071e3; margin-bottom: 14px; }
+  .sel-count { background: #34c759; color: white; font-size: 12px; padding: 2px 8px; border-radius: 20px; margin-left: 8px; }
+  .big-btn { width: 100%; padding: 14px; font-size: 16px; border-radius: 10px; }
+  .status-bar { font-size: 13px; color: #6e6e73; text-align: center; margin-bottom: 10px; }
+  .log-box { background: #1d1d1f; color: #30d158; font-family: monospace; font-size: 12px; border-radius: 8px; padding: 14px; max-height: 200px; overflow-y: auto; margin-top: 12px; display: none; }
+  .log-box.visible { display: block; }
+  .tag-music { color: #0071e3; }
+  .tag-sports { color: #ff9500; }
+  @media (max-width: 600px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎟 Infotickets Panel</h1>
+  <span>Ticombo → Shopify</span>
+</header>
+
+<div class="container">
+
+  <!-- CONFIG -->
+  <div class="card">
+    <p class="card-title">⚙️ Configuración</p>
+    <div class="grid3" style="margin-bottom:12px">
+      <div class="field"><label>API Key Ticombo</label><input type="password" id="ticombo-key" value="" /></div>
+      <div class="field"><label>Código afiliado (camref)</label><input type="text" id="camref" value="" /></div>
+      <div class="field"><label>Nombre de tu web</label><input type="text" id="sitename" value="Infotickets.com" /></div>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>Shopify Store</label><input type="text" id="shop-store" value="" /></div>
+      <div class="field"><label>Shopify Client ID</label><input type="password" id="shop-client-id" value="" /></div>
+      <div class="field"><label>Shopify Secret</label><input type="password" id="shop-secret" value="" /></div>
+    </div>
+  </div>
+
+  <!-- SEARCH -->
+  <div class="card">
+    <p class="card-title">🔍 Buscar eventos en Ticombo</p>
+    <div class="tip">Escribe el nombre del artista o equipo y pulsa Buscar</div>
+    <div class="search-row">
+      <input type="text" id="search-input" placeholder="Ej: Coldplay, Real Madrid, Juventus..." onkeydown="if(event.key==='Enter') searchEvents()" />
+      <button class="btn-primary" onclick="searchEvents()" id="search-btn">Buscar</button>
+    </div>
+    <div id="results-area"></div>
+  </div>
+
+  <!-- SELECTED -->
+  <div class="card" id="selected-card" style="display:none">
+    <p class="card-title">✅ Seleccionados <span class="sel-count" id="sel-count">0</span></p>
+    <div id="selected-list"></div>
+  </div>
+
+  <!-- PUBLISH -->
+  <div class="card">
+    <p class="card-title">🚀 Publicar en Shopify</p>
+    <p class="status-bar" id="publish-status"></p>
+    <button class="btn-success big-btn" id="publish-btn" onclick="publishToShopify()" disabled>
+      Publicar eventos en Shopify
+    </button>
+    <div class="log-box" id="log-box"></div>
+  </div>
+
+</div>
+
+<script>
+const TICOMBO_BASE = 'https://external-api.devtic.net/affiliate/v1';
+const TICOMBO_PROXY = 'https://corsproxy.io/?';
+
+let selectedEvents = [];
+let shopifyToken = null;
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+
+function slugify(s) {
+  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim();
+}
+
+function pad(n) { return String(n).padStart(2,'0'); }
+
+const MONTHS_EN   = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function parseDate(ev) {
+  const s = ev?.date?.localStart;
+  if (!s) return new Date();
+  try { return new Date(s); } catch(e) { return new Date(); }
+}
+
+function buildSKU(title, dt) {
+  const letters = title.toUpperCase().replace(/[^A-Z]/g,'').slice(0,6);
+  return `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}${letters}`;
+}
+
+function buildHandle(ev, dt) {
+  const base = slugify(ev.name || '');
+  if (ev.category === 'music') {
+    const city = slugify(ev.venue?.location?.city || '');
+    return `${base}-${city}-${dt.getDate()}-${MONTHS_EN[dt.getMonth()]}-${dt.getFullYear()}`;
+  }
+  return `${base}-tickets`;
+}
+
+function buildAffUrl(ev, sku) {
+  const camref = document.getElementById('camref').value.trim();
+  const pid    = ev.eventId || '';
+  const dest   = ev.shortUrl || `https://www.ticombo.com/en/event/${pid}`;
+  return `https://ticombo.prf.hn/click/camref:${camref}/pubref:Web/ar:${sku}/[p_id:${pid}]/destination:${encodeURIComponent(dest)}`;
+}
+
+function countryName(code) {
+  try { return new Intl.DisplayNames(['en'],{type:'region'}).of(code) || code; } catch(e) { return code||''; }
+}
+
+function catBadge(cat) {
+  const cls = cat==='music'?'badge-music':cat==='sports'?'badge-sports':'badge-other';
+  return cat ? `<span class="badge ${cls}">${cat}</span>` : '';
+}
+
+function log(msg, type='info') {
+  const box = document.getElementById('log-box');
+  box.classList.add('visible');
+  const color = type==='error'?'#ff453a':type==='success'?'#30d158':'#ebebf0';
+  box.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── TICOMBO SEARCH ───────────────────────────────────────────────────────────
+
+async function searchEvents() {
+  const q   = document.getElementById('search-input').value.trim();
+  const key = document.getElementById('ticombo-key').value.trim();
+  if (!q) return;
+
+  document.getElementById('results-area').innerHTML = '<div class="loading">⏳ Buscando eventos...</div>';
+  document.getElementById('search-btn').disabled = true;
+
+  const url = `${TICOMBO_PROXY}${encodeURIComponent(`${TICOMBO_BASE}/events?name=${encodeURIComponent(q)}&limit=50&hasTickets=true`)}`;
+
+  try {
+    const res = await fetch(url, { headers: { 'x-api-key': key } });
+    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const data = await res.json();
+    renderResults(data.data || []);
+  } catch(e) {
+    document.getElementById('results-area').innerHTML = `<div class="error">❌ Error al buscar: ${e.message}</div>`;
+  } finally {
+    document.getElementById('search-btn').disabled = false;
+  }
+}
+
+function renderResults(events) {
+  const el = document.getElementById('results-area');
+  if (!events.length) { el.innerHTML = '<div class="loading">No se encontraron eventos con tickets disponibles.</div>'; return; }
+  el.innerHTML = `<div style="font-size:13px;color:#6e6e73;margin-bottom:10px">${events.length} evento(s) encontrado(s) — haz clic para seleccionar</div>
+  <div class="results-list">${events.map(ev => {
+    const isSel = selectedEvents.find(s => s.eventId === ev.eventId);
+    const dt    = parseDate(ev);
+    const dateStr = dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    const evJson = encodeURIComponent(JSON.stringify(ev));
+    return `<div class="event-item${isSel?' selected':''}" onclick="toggleEvent('${evJson}')">
+      <div>
+        <div class="event-name">${ev.name} ${catBadge(ev.category)}</div>
+        <div class="event-meta">${dateStr} · ${ev.venue?.name||''} · ${ev.venue?.location?.city||''}, ${ev.venue?.location?.country||''}</div>
+      </div>
+      <span class="${isSel?'check-icon':'plus-icon'}">${isSel?'✓':'+'}</span>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function toggleEvent(evEncoded) {
+  const ev  = JSON.parse(decodeURIComponent(evEncoded));
+  const idx = selectedEvents.findIndex(s => s.eventId === ev.eventId);
+  if (idx >= 0) selectedEvents.splice(idx, 1);
+  else selectedEvents.push(ev);
+  updateSelected();
+  const q = document.getElementById('search-input').value.trim();
+  if (q) searchEvents();
+}
+
+function updateSelected() {
+  const card = document.getElementById('selected-card');
+  const list = document.getElementById('selected-list');
+  document.getElementById('sel-count').textContent = selectedEvents.length;
+  card.style.display = selectedEvents.length ? 'block' : 'none';
+
+  list.innerHTML = selectedEvents.map(ev => {
+    const dt = parseDate(ev);
+    return `<div class="event-item selected" style="cursor:default">
+      <div>
+        <div class="event-name">${ev.name} ${catBadge(ev.category)}</div>
+        <div class="event-meta">${dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'})} · ${ev.venue?.location?.city||''}</div>
+      </div>
+      <button class="btn-danger btn-sm" onclick="removeSelected('${ev.eventId}')">✕</button>
+    </div>`;
+  }).join('');
+
+  const status = document.getElementById('publish-status');
+  status.textContent = selectedEvents.length ? `${selectedEvents.length} evento(s) listos para publicar` : '';
+  document.getElementById('publish-btn').disabled = selectedEvents.length === 0;
+}
+
+function removeSelected(id) {
+  selectedEvents = selectedEvents.filter(e => e.eventId !== id);
+  updateSelected();
+}
+
+// ── SHOPIFY TOKEN ─────────────────────────────────────────────────────────────
+
+async function getShopifyToken() {
+  const clientId = document.getElementById('shop-client-id').value.trim();
+  const secret   = document.getElementById('shop-secret').value.trim();
+  const store    = document.getElementById('shop-store').value.trim();
+
+  const proxyUrl = `${TICOMBO_PROXY}${encodeURIComponent(`https://${store}/admin/oauth/access_token`)}`;
+
+  const res = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: clientId,
+      client_secret: secret,
+      grant_type: 'client_credentials'
+    })
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`No se pudo obtener token de Shopify: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.access_token;
+}
+
+// ── BUILD SHOPIFY PRODUCT ─────────────────────────────────────────────────────
+
+function buildProduct(ev) {
+  const dt       = parseDate(ev);
+  const title    = ev.name || '';
+  const city     = ev.venue?.location?.city || '';
+  const country  = countryName(ev.venue?.location?.country || '');
+  const stadium  = ev.venue?.name || '';
+  const isMusic  = ev.category === 'music';
+  const evWord   = isMusic ? 'concert' : 'match';
+  const sitename = document.getElementById('sitename').value.trim();
+  const sku      = buildSKU(title, dt);
+  const handle   = buildHandle(ev, dt);
+  const monthStr = MONTHS_LONG[dt.getMonth()];
+  const affUrl   = buildAffUrl(ev, sku);
+
+  const seoTitle = `Buy ${title} tickets${stadium ? ` at ${stadium}` : ''} | ${sitename}`;
+  const seoDesc  = `Enjoy the ${evWord} ${title} in ${city}${stadium ? ` at ${stadium}` : ''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
+  const dateMetafield = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
+
+  return {
+    product: {
+      title,
+      handle,
+      vendor: 'Ticombo',
+      product_type: 'Tickets',
+      tags: ['Tickets'],
+      status: 'active',
+      template_suffix: 'viagogo-products',
+      variants: [{
+        sku,
+        price: '0.00',
+        inventory_management: 'shopify',
+        inventory_quantity: 100,
+        inventory_policy: 'deny',
+        fulfillment_service: 'manual',
+        taxable: true,
+        requires_shipping: false,
+        option1: 'Match Tickets'
+      }],
+      options: [{ name: 'Category', values: ['Match Tickets'] }],
+      metafields: [
+        { namespace: 'my_fields',  key: 'date_and_time', value: dateMetafield, type: 'date_time' },
+        { namespace: 'custom', key: 'estadio',      value: stadium,   type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'ubicacion',    value: city,      type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'tipo',         value: 'Tickets', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'competicion',  value: ev.subcategory || ev.category || '', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'country',      value: country,   type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'additional_information', value: 'Some links on this page may lead to affiliate sites, which means Infotickets could earn a commission if you make a purchase, at no extra cost to you.', type: 'multi_line_text_field' },
+        { namespace: 'custom', key: 'viagogo_url',  value: affUrl,    type: 'url' },
+      ],
+      seo: { title: seoTitle, description: seoDesc }
+    }
+  };
+}
+
+// ── PUBLISH ───────────────────────────────────────────────────────────────────
+
+async function publishToShopify() {
+  if (!selectedEvents.length) return;
+
+  const store = document.getElementById('shop-store').value.trim();
+  const btn   = document.getElementById('publish-btn');
+  btn.disabled = true;
+  btn.textContent = 'Publicando...';
+  document.getElementById('log-box').innerHTML = '';
+
+  try {
+    log('Obteniendo token de Shopify...');
+    shopifyToken = await getShopifyToken();
+    log('Token obtenido ✓', 'success');
+  } catch(e) {
+    log(`Error de autenticación: ${e.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Publicar eventos en Shopify';
+    return;
+  }
+
+  let ok = 0, fail = 0;
+  for (const ev of selectedEvents) {
+    try {
+      log(`Publicando: ${ev.name}...`);
+      const product = buildProduct(ev);
+      const url = `${TICOMBO_PROXY}${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': shopifyToken
+        },
+        body: JSON.stringify(product)
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err);
+      }
+      log(`✓ Publicado: ${ev.name}`, 'success');
+      ok++;
+    } catch(e) {
+      log(`✗ Error en ${ev.name}: ${e.message}`, 'error');
+      fail++;
+    }
+  }
+
+  log(`--- Finalizado: ${ok} publicados, ${fail} errores ---`, ok > 0 ? 'success' : 'error');
+  btn.disabled = false;
+  btn.textContent = 'Publicar eventos en Shopify';
+
+  if (ok > 0) {
+    document.getElementById('publish-status').innerHTML = `<span style="color:#34c759">✓ ${ok} evento(s) publicados correctamente en Shopify</span>`;
+  }
+}
+</script>
+</body>
+</html>
