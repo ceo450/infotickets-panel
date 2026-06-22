@@ -341,7 +341,7 @@ function updatePreview() {
       ['Template Suffix', 'viagogo-products'], ['SEO Title', seoTitle],
       ['SEO Description', seoDesc], ['date_and_time', dateMeta],
       ['estadio', stadium], ['ubicacion', city], ['country', country],
-      ['competicion', ev.subcategory || ev.category || ''], ['tipo', 'Tickets'],
+      ['competicion', ev.competition?.name || ev.competition || ev.subcategory || ev.category || ''], ['tipo', 'Tickets'],
       ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${affUrl}</span>`],
     ];
     return `<div style="margin-bottom:20px">
@@ -382,7 +382,7 @@ function buildShopifyProduct(ev) {
         { namespace: 'custom', key: 'estadio', value: stadium, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'ubicacion', value: city, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'tipo', value: 'Tickets', type: 'single_line_text_field' },
-        { namespace: 'custom', key: 'competicion', value: ev.subcategory || ev.category || '', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'competicion', value: ev.competition?.name || ev.competition || ev.subcategory || ev.category || '', type: 'single_line_text_field' },
         { namespace: 'custom', key: 'country', value: country, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'additional_information', value: 'Some links on this page may lead to affiliate sites, which means Infotickets could earn a commission if you make a purchase, at no extra cost to you.', type: 'multi_line_text_field' },
         { namespace: 'custom', key: 'viagogo_url', value: affUrl, type: 'url' },
