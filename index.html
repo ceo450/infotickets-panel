@@ -7,17 +7,21 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
-  header { background: #1d1d1f; color: white; padding: 16px 32px; display: flex; align-items: center; gap: 12px; }
-  header h1 { font-size: 18px; font-weight: 600; }
-  header span { font-size: 13px; opacity: 0.5; }
-  .container { max-width: 960px; margin: 32px auto; padding: 0 24px; }
+  header { background: #1d1d1f; color: white; padding: 0 32px; display: flex; align-items: center; gap: 24px; }
+  header h1 { font-size: 18px; font-weight: 600; padding: 16px 0; margin-right: 8px; }
+  .nav-tab { padding: 18px 4px; font-size: 14px; color: rgba(255,255,255,0.5); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; user-select: none; }
+  .nav-tab:hover { color: white; }
+  .nav-tab.active { color: white; border-bottom-color: #0071e3; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .container { max-width: 1000px; margin: 32px auto; padding: 0 24px; }
   .card { background: white; border-radius: 12px; border: 1px solid #e5e5e7; padding: 24px; margin-bottom: 20px; }
   .card-title { font-size: 13px; font-weight: 600; color: #6e6e73; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 12px; color: #6e6e73; }
-  .field input { border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; }
+  .field input { border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; width: 100%; }
   .field input:focus { border-color: #0071e3; }
   .search-row { display: flex; gap: 10px; margin-bottom: 12px; }
   .search-row input { flex: 1; border: 1px solid #d2d2d7; border-radius: 8px; padding: 10px 14px; font-size: 15px; outline: none; }
@@ -27,9 +31,13 @@
   button:disabled { opacity: .4; cursor: not-allowed; }
   .btn-primary { background: #0071e3; color: white; }
   .btn-success { background: #34c759; color: white; }
-  .btn-danger { background: #ff3b30; color: white; padding: 6px 10px; font-size: 12px; }
-  .btn-sm { padding: 6px 12px; font-size: 13px; }
-  .event-item { border: 1px solid #e5e5e7; border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; transition: background .1s; }
+  .btn-danger { background: #ff3b30; color: white; }
+  .btn-secondary { background: #f0f0f0; color: #1d1d1f; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .entity-item { border: 1px solid #e5e5e7; border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
+  .entity-item:hover { background: #f5f5f7; }
+  .entity-item.selected { border-color: #0071e3; background: #f0f7ff; }
+  .event-item { border: 1px solid #e5e5e7; border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; cursor: pointer; }
   .event-item:hover { background: #f5f5f7; }
   .event-item.selected { border-color: #34c759; background: #f0fff4; }
   .event-name { font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -40,130 +48,147 @@
   .badge-other { background: #f0f0f0; color: #6e6e73; }
   .check-icon { font-size: 20px; color: #34c759; flex-shrink: 0; }
   .plus-icon { font-size: 20px; color: #c7c7cc; flex-shrink: 0; }
-  .results-list { max-height: 400px; overflow-y: auto; }
+  .results-list { max-height: 380px; overflow-y: auto; }
   .loading { text-align: center; padding: 32px; color: #6e6e73; font-size: 14px; }
-  .error { background: #fff2f2; border: 1px solid #ffb3b3; border-radius: 8px; padding: 12px 16px; color: #ff3b30; font-size: 13px; margin-top: 8px; }
-  .success { background: #f0fff4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; color: #16a34a; font-size: 13px; margin-top: 8px; }
+  .error-box { background: #fff2f2; border: 1px solid #ffb3b3; border-radius: 8px; padding: 12px 16px; color: #ff3b30; font-size: 13px; margin-top: 8px; }
   .tip { background: #f0f7ff; border-left: 3px solid #0071e3; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #0071e3; margin-bottom: 14px; }
   .sel-count { background: #34c759; color: white; font-size: 12px; padding: 2px 8px; border-radius: 20px; margin-left: 8px; }
-  .big-btn { width: 100%; padding: 14px; font-size: 16px; border-radius: 10px; }
-  .status-bar { font-size: 13px; color: #6e6e73; text-align: center; margin-bottom: 10px; }
   .log-box { background: #1d1d1f; color: #30d158; font-family: monospace; font-size: 12px; border-radius: 8px; padding: 14px; max-height: 200px; overflow-y: auto; margin-top: 12px; display: none; }
   .log-box.visible { display: block; }
-  .tag-music { color: #0071e3; }
-  .tag-sports { color: #ff9500; }
-  @media (max-width: 600px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .preview-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; word-break: break-all; }
+  .preview-table tr:last-child td { border-bottom: none; }
+  .preview-table td:first-child { color: #6e6e73; font-weight: 500; width: 200px; word-break: normal; white-space: nowrap; }
+  .preview-scroll { max-height: 350px; overflow-y: auto; border: 1px solid #e5e5e7; border-radius: 8px; }
+  .config-saved { font-size: 11px; color: #34c759; margin-left: 8px; font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0; transition: opacity .3s; }
+  .config-saved.show { opacity: 1; }
+  @media (max-width: 600px) { .grid2, .grid3 { grid-template-columns: 1fr; } header { padding: 0 16px; } }
 </style>
 </head>
 <body>
 
 <header>
-  <h1>🎟 Infotickets Panel</h1>
-  <span>Ticombo → Shopify</span>
+  <h1>🎟 Infotickets</h1>
+  <div class="nav-tab active" onclick="showPage('panel')" id="tab-panel">Panel</div>
+  <div class="nav-tab" onclick="showPage('config')" id="tab-config">⚙️ Configuración</div>
 </header>
 
+<!-- PAGE: PANEL -->
+<div class="page active" id="page-panel">
 <div class="container">
 
-  <!-- CONFIG -->
+  <!-- PASO 1 -->
   <div class="card">
-    <p class="card-title">⚙️ Configuración</p>
-    <div class="grid3" style="margin-bottom:12px">
-      <div class="field"><label>API Key Ticombo</label><input type="password" id="ticombo-key" value="" /></div>
-      <div class="field"><label>Código afiliado (camref)</label><input type="text" id="camref" value="" /></div>
-      <div class="field"><label>Nombre de tu web</label><input type="text" id="sitename" value="Infotickets.com" /></div>
-    </div>
-    <div class="grid3">
-      <div class="field"><label>Shopify Store</label><input type="text" id="shop-store" value="" /></div>
-      <div class="field"><label>Shopify Client ID</label><input type="password" id="shop-client-id" value="" /></div>
-      <div class="field"><label>Shopify Secret</label><input type="password" id="shop-secret" value="" /></div>
-    </div>
-  </div>
-
-  <!-- SEARCH -->
-  <div class="card">
-    <p class="card-title">🔍 Buscar eventos en Ticombo</p>
-    <div class="tip">Escribe el nombre del artista o equipo y pulsa Buscar</div>
+    <p class="card-title">🔍 Paso 1 — Buscar artista o equipo</p>
+    <div class="tip">Busca el artista o equipo para obtener todos sus eventos disponibles en Ticombo</div>
     <div class="search-row">
-      <input type="text" id="search-input" placeholder="Ej: Coldplay, Real Madrid, Juventus..." onkeydown="if(event.key==='Enter') searchEvents()" />
-      <button class="btn-primary" onclick="searchEvents()" id="search-btn">Buscar</button>
+      <input type="text" id="entity-input" placeholder="Ej: Juventus, Coldplay, Real Madrid..." onkeydown="if(event.key==='Enter') searchEntities()" />
+      <button class="btn-primary" onclick="searchEntities()" id="entity-btn">Buscar</button>
     </div>
-    <div id="results-area"></div>
+    <div id="entity-results"></div>
   </div>
 
-  <!-- SELECTED -->
-  <div class="card" id="selected-card" style="display:none">
-    <p class="card-title">✅ Seleccionados <span class="sel-count" id="sel-count">0</span></p>
-    <div id="selected-list"></div>
+  <!-- PASO 2 -->
+  <div class="card" id="events-card" style="display:none">
+    <p class="card-title">📅 Paso 2 — Seleccionar eventos <span id="events-entity-name" style="color:#0071e3;text-transform:none;font-weight:400;letter-spacing:0"></span></p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <span id="events-count" style="font-size:13px;color:#6e6e73"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-secondary btn-sm" onclick="selectAllEvents()">Seleccionar todos</button>
+        <button class="btn-secondary btn-sm" onclick="deselectAllEvents()">Deseleccionar todos</button>
+      </div>
+    </div>
+    <div id="events-results" class="results-list"></div>
   </div>
 
-  <!-- PUBLISH -->
-  <div class="card">
-    <p class="card-title">🚀 Publicar en Shopify</p>
-    <p class="status-bar" id="publish-status"></p>
-    <button class="btn-success big-btn" id="publish-btn" onclick="publishToShopify()" disabled>
-      Publicar eventos en Shopify
-    </button>
+  <!-- PASO 3 -->
+  <div class="card" id="preview-card" style="display:none">
+    <p class="card-title">👁 Paso 3 — Preview <span class="sel-count" id="sel-count">0</span></p>
+    <div id="preview-area"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-success" onclick="publishToShopify()" id="publish-btn">🚀 Publicar en Shopify</button>
+      <button class="btn-secondary" onclick="deselectAllEvents()">Limpiar selección</button>
+    </div>
     <div class="log-box" id="log-box"></div>
   </div>
 
 </div>
+</div>
+
+<!-- PAGE: CONFIG -->
+<div class="page" id="page-config">
+<div class="container">
+  <div class="card">
+    <p class="card-title">⚙️ Configuración <span class="config-saved" id="config-saved">● Guardado</span></p>
+    <div class="grid3" style="margin-bottom:16px">
+      <div class="field"><label>API Key Ticombo</label><input type="password" id="ticombo-key" placeholder="lYcEDOk4u..." /></div>
+      <div class="field"><label>Código afiliado (camref)</label><input type="text" id="camref" placeholder="1011l4ZQWz" /></div>
+      <div class="field"><label>Nombre de tu web</label><input type="text" id="sitename" placeholder="Infotickets.com" /></div>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>Shopify Store</label><input type="text" id="shop-store" placeholder="infoticket.myshopify.com" /></div>
+      <div class="field"><label>Shopify Client ID</label><input type="password" id="shop-client-id" placeholder="ba1eb97c..." /></div>
+      <div class="field"><label>Shopify Secret</label><input type="password" id="shop-secret" placeholder="shpss_..." /></div>
+    </div>
+    <p style="font-size:12px;color:#6e6e73;margin-top:16px">Los datos se guardan en tu navegador y nunca se envían a ningún servidor externo.</p>
+  </div>
+</div>
+</div>
 
 <script>
-const TICOMBO_BASE = 'https://external-api.devtic.net/affiliate/v1';
+const PROXY = 'https://ticombo-proxy.ceo-aed.workers.dev/?url=';
+const TICOMBO = 'https://external-api.devtic.net/affiliate/v1';
 
-// ── GUARDAR / CARGAR CONFIGURACIÓN ───────────────────────────────────────────
-const CONFIG_FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret'];
+// ── NAVIGATION ────────────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
 
+// ── CONFIG PERSISTENCE ────────────────────────────────────────────────────────
+const FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret'];
+let saveTimer;
 function saveConfig() {
-  CONFIG_FIELDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) localStorage.setItem('it_' + id, el.value);
-  });
+  FIELDS.forEach(id => { const el = document.getElementById(id); if(el) localStorage.setItem('it_'+id, el.value); });
+  const badge = document.getElementById('config-saved');
+  badge.classList.add('show');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => badge.classList.remove('show'), 2000);
 }
-
 function loadConfig() {
-  CONFIG_FIELDS.forEach(id => {
-    const val = localStorage.getItem('it_' + id);
-    const el = document.getElementById(id);
-    if (el && val) el.value = val;
-  });
+  FIELDS.forEach(id => { const v = localStorage.getItem('it_'+id); const el = document.getElementById(id); if(el && v) el.value = v; });
 }
-
 document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
-  CONFIG_FIELDS.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('input', saveConfig);
-  });
+  FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
 });
-const TICOMBO_PROXY = 'https://ticombo-proxy.ceo-aed.workers.dev/?url=';
 
+// ── STATE ─────────────────────────────────────────────────────────────────────
+let selectedEntity = null;
+let allEvents = [];
 let selectedEvents = [];
 let shopifyToken = null;
 
-// ── HELPERS ──────────────────────────────────────────────────────────────────
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const pad = n => String(n).padStart(2,'0');
+const MONTHS_EN   = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function slugify(s) {
   return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim();
 }
-
-function pad(n) { return String(n).padStart(2,'0'); }
-
-const MONTHS_EN   = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
 function parseDate(ev) {
   const s = ev?.date?.localStart;
   if (!s) return new Date();
   try { return new Date(s); } catch(e) { return new Date(); }
 }
-
 function buildSKU(title, dt) {
   const letters = title.toUpperCase().replace(/[^A-Z]/g,'').slice(0,6);
   return `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}${letters}`;
 }
-
 function buildHandle(ev, dt) {
   const base = slugify(ev.name || '');
   if (ev.category === 'music') {
@@ -172,23 +197,23 @@ function buildHandle(ev, dt) {
   }
   return `${base}-tickets`;
 }
-
 function buildAffUrl(ev, sku) {
   const camref = document.getElementById('camref').value.trim();
-  const pid    = ev.eventId || '';
-  const dest   = ev.shortUrl || `https://www.ticombo.com/en/event/${pid}`;
+  const pid = ev.eventId || '';
+  const dest = ev.shortUrl || `https://www.ticombo.com/en/event/${pid}`;
   return `https://ticombo.prf.hn/click/camref:${camref}/pubref:Web/ar:${sku}/[p_id:${pid}]/destination:${encodeURIComponent(dest)}`;
 }
-
 function countryName(code) {
-  try { return new Intl.DisplayNames(['en'],{type:'region'}).of(code) || code; } catch(e) { return code||''; }
+  try { return new Intl.DisplayNames(['en'],{type:'region'}).of(code)||code; } catch(e) { return code||''; }
 }
-
 function catBadge(cat) {
   const cls = cat==='music'?'badge-music':cat==='sports'?'badge-sports':'badge-other';
   return cat ? `<span class="badge ${cls}">${cat}</span>` : '';
 }
-
+function apiUrl(endpoint) {
+  const key = document.getElementById('ticombo-key').value.trim();
+  return `${PROXY}${encodeURIComponent(`${TICOMBO}${endpoint}`)}&apikey=${encodeURIComponent(key)}`;
+}
 function log(msg, type='info') {
   const box = document.getElementById('log-box');
   box.classList.add('visible');
@@ -197,210 +222,218 @@ function log(msg, type='info') {
   box.scrollTop = box.scrollHeight;
 }
 
-// ── TICOMBO SEARCH ───────────────────────────────────────────────────────────
-
-async function searchEvents() {
-  const q   = document.getElementById('search-input').value.trim();
-  const key = document.getElementById('ticombo-key').value.trim();
+// ── STEP 1: ENTITIES ──────────────────────────────────────────────────────────
+async function searchEntities() {
+  const q = document.getElementById('entity-input').value.trim();
   if (!q) return;
-
-  document.getElementById('results-area').innerHTML = '<div class="loading">⏳ Buscando eventos...</div>';
-  document.getElementById('search-btn').disabled = true;
-
-  const url = `${TICOMBO_PROXY}${encodeURIComponent(`${TICOMBO_BASE}/events?name=${encodeURIComponent(q)}&limit=50&hasTickets=true`)}&apikey=${encodeURIComponent(key)}`;
-
+  const key = document.getElementById('ticombo-key').value.trim();
+  if (!key) { alert('Añade primero el API Key de Ticombo en ⚙️ Configuración'); showPage('config'); return; }
+  const el = document.getElementById('entity-results');
+  el.innerHTML = '<div class="loading">⏳ Buscando...</div>';
+  document.getElementById('entity-btn').disabled = true;
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Error ${res.status}`);
+    const res = await fetch(apiUrl(`/entities?name=${encodeURIComponent(q)}&limit=20`));
+    if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
     const data = await res.json();
-    renderResults(data.data || []);
+    renderEntities(data.data || []);
   } catch(e) {
-    document.getElementById('results-area').innerHTML = `<div class="error">❌ Error al buscar: ${e.message}</div>`;
+    el.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
   } finally {
-    document.getElementById('search-btn').disabled = false;
+    document.getElementById('entity-btn').disabled = false;
   }
 }
 
-function renderResults(events) {
-  const el = document.getElementById('results-area');
-  if (!events.length) { el.innerHTML = '<div class="loading">No se encontraron eventos con tickets disponibles.</div>'; return; }
-  el.innerHTML = `<div style="font-size:13px;color:#6e6e73;margin-bottom:10px">${events.length} evento(s) encontrado(s) — haz clic para seleccionar</div>
-  <div class="results-list">${events.map(ev => {
+function renderEntities(entities) {
+  const el = document.getElementById('entity-results');
+  if (!entities.length) { el.innerHTML = '<div class="loading">No se encontraron resultados.</div>'; return; }
+  el.innerHTML = `<div style="font-size:13px;color:#6e6e73;margin-bottom:10px">${entities.length} resultado(s) — selecciona el artista o equipo</div>
+  <div>${entities.map(en => {
+    const cat = en.category || en.type || '';
+    const isSel = selectedEntity?.entityId === en.entityId;
+    return `<div class="entity-item${isSel?' selected':''}" onclick='selectEntity(${JSON.stringify(en).replace(/'/g,"&#39;")})'>
+      <div>
+        <div class="event-name">${en.name} ${catBadge(cat)}</div>
+        <div class="event-meta">${en.subcategory || cat || ''}</div>
+      </div>
+      <span style="font-size:20px;color:${isSel?'#0071e3':'#c7c7cc'}">${isSel?'●':'○'}</span>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function selectEntity(entity) {
+  selectedEntity = entity;
+  selectedEvents = [];
+  allEvents = [];
+  document.getElementById('events-card').style.display = 'block';
+  document.getElementById('events-entity-name').textContent = `— ${entity.name}`;
+  document.getElementById('events-results').innerHTML = '<div class="loading">⏳ Cargando eventos...</div>';
+  document.getElementById('events-count').textContent = '';
+  document.getElementById('preview-card').style.display = 'none';
+  renderEntities([entity]);
+  try {
+    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=100`));
+    if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    allEvents = data.data || [];
+    renderEvents();
+  } catch(e) {
+    document.getElementById('events-results').innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
+  }
+}
+
+// ── STEP 2: EVENTS ────────────────────────────────────────────────────────────
+function renderEvents() {
+  const el = document.getElementById('events-results');
+  document.getElementById('events-count').textContent = `${allEvents.length} evento(s) encontrado(s)`;
+  if (!allEvents.length) { el.innerHTML = '<div class="loading">No se encontraron eventos.</div>'; return; }
+  el.innerHTML = allEvents.map(ev => {
     const isSel = selectedEvents.find(s => s.eventId === ev.eventId);
-    const dt    = parseDate(ev);
+    const dt = parseDate(ev);
     const dateStr = dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    const evJson = encodeURIComponent(JSON.stringify(ev));
-    return `<div class="event-item${isSel?' selected':''}" onclick="toggleEvent('${evJson}')">
+    return `<div class="event-item${isSel?' selected':''}" onclick='toggleEvent("${ev.eventId}")'>
       <div>
         <div class="event-name">${ev.name} ${catBadge(ev.category)}</div>
         <div class="event-meta">${dateStr} · ${ev.venue?.name||''} · ${ev.venue?.location?.city||''}, ${ev.venue?.location?.country||''}</div>
       </div>
       <span class="${isSel?'check-icon':'plus-icon'}">${isSel?'✓':'+'}</span>
     </div>`;
-  }).join('')}</div>`;
+  }).join('');
 }
 
-function toggleEvent(evEncoded) {
-  const ev  = JSON.parse(decodeURIComponent(evEncoded));
-  const idx = selectedEvents.findIndex(s => s.eventId === ev.eventId);
+function toggleEvent(eventId) {
+  const ev = allEvents.find(e => e.eventId === eventId);
+  if (!ev) return;
+  const idx = selectedEvents.findIndex(s => s.eventId === eventId);
   if (idx >= 0) selectedEvents.splice(idx, 1);
   else selectedEvents.push(ev);
-  updateSelected();
-  const q = document.getElementById('search-input').value.trim();
-  if (q) searchEvents();
+  renderEvents();
+  updatePreview();
 }
 
-function updateSelected() {
-  const card = document.getElementById('selected-card');
-  const list = document.getElementById('selected-list');
-  document.getElementById('sel-count').textContent = selectedEvents.length;
-  card.style.display = selectedEvents.length ? 'block' : 'none';
+function selectAllEvents() { selectedEvents = [...allEvents]; renderEvents(); updatePreview(); }
+function deselectAllEvents() { selectedEvents = []; renderEvents(); updatePreview(); }
 
-  list.innerHTML = selectedEvents.map(ev => {
+// ── STEP 3: PREVIEW ───────────────────────────────────────────────────────────
+function updatePreview() {
+  const card = document.getElementById('preview-card');
+  document.getElementById('sel-count').textContent = selectedEvents.length;
+  document.getElementById('publish-btn').disabled = selectedEvents.length === 0;
+  if (!selectedEvents.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const sitename = document.getElementById('sitename').value.trim() || 'Infotickets.com';
+  document.getElementById('preview-area').innerHTML = selectedEvents.map((ev, i) => {
     const dt = parseDate(ev);
-    return `<div class="event-item selected" style="cursor:default">
-      <div>
-        <div class="event-name">${ev.name} ${catBadge(ev.category)}</div>
-        <div class="event-meta">${dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'})} · ${ev.venue?.location?.city||''}</div>
+    const title = ev.name || '';
+    const city = ev.venue?.location?.city || '';
+    const country = countryName(ev.venue?.location?.country || '');
+    const stadium = ev.venue?.name || '';
+    const isMusic = ev.category === 'music';
+    const evWord = isMusic ? 'concert' : 'match';
+    const sku = buildSKU(title, dt);
+    const handle = buildHandle(ev, dt);
+    const affUrl = buildAffUrl(ev, sku);
+    const monthStr = MONTHS_LONG[dt.getMonth()];
+    const seoTitle = `Buy ${title} tickets${stadium?` at ${stadium}`:''} | ${sitename}`;
+    const seoDesc = `Enjoy the ${evWord} ${title} in ${city}${stadium?` at ${stadium}`:''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
+    const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
+    const rows = [
+      ['Title', title], ['Handle', handle], ['SKU', sku],
+      ['Template Suffix', 'viagogo-products'], ['SEO Title', seoTitle],
+      ['SEO Description', seoDesc], ['date_and_time', dateMeta],
+      ['estadio', stadium], ['ubicacion', city], ['country', country],
+      ['competicion', ev.subcategory || ev.category || ''], ['tipo', 'Tickets'],
+      ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${affUrl}</span>`],
+    ];
+    return `<div style="margin-bottom:20px">
+      <div style="font-weight:600;font-size:14px;padding:10px 12px;background:#f5f5f7;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
+        <span>${i+1}. ${title} ${catBadge(ev.category)}</span>
+        <button class="btn-danger btn-sm" onclick="toggleEvent('${ev.eventId}')">Quitar</button>
       </div>
-      <button class="btn-danger btn-sm" onclick="removeSelected('${ev.eventId}')">✕</button>
+      <div class="preview-scroll"><table class="preview-table">${rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table></div>
     </div>`;
   }).join('');
-
-  const status = document.getElementById('publish-status');
-  status.textContent = selectedEvents.length ? `${selectedEvents.length} evento(s) listos para publicar` : '';
-  document.getElementById('publish-btn').disabled = selectedEvents.length === 0;
 }
 
-function removeSelected(id) {
-  selectedEvents = selectedEvents.filter(e => e.eventId !== id);
-  updateSelected();
-}
-
-// ── SHOPIFY TOKEN ─────────────────────────────────────────────────────────────
-
-async function getShopifyToken() {
-  const clientId = document.getElementById('shop-client-id').value.trim();
-  const secret   = document.getElementById('shop-secret').value.trim();
-  const store    = document.getElementById('shop-store').value.trim();
-
-  const proxyUrl = `${TICOMBO_PROXY}${encodeURIComponent(`https://${store}/admin/oauth/access_token`)}`;
-
-  const res = await fetch(proxyUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: clientId,
-      client_secret: secret,
-      grant_type: 'client_credentials'
-    })
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`No se pudo obtener token de Shopify: ${err}`);
-  }
-
-  const data = await res.json();
-  return data.access_token;
-}
-
-// ── BUILD SHOPIFY PRODUCT ─────────────────────────────────────────────────────
-
-function buildProduct(ev) {
-  const dt       = parseDate(ev);
-  const title    = ev.name || '';
-  const city     = ev.venue?.location?.city || '';
-  const country  = countryName(ev.venue?.location?.country || '');
-  const stadium  = ev.venue?.name || '';
-  const isMusic  = ev.category === 'music';
-  const evWord   = isMusic ? 'concert' : 'match';
-  const sitename = document.getElementById('sitename').value.trim();
-  const sku      = buildSKU(title, dt);
-  const handle   = buildHandle(ev, dt);
+// ── SHOPIFY ───────────────────────────────────────────────────────────────────
+function buildShopifyProduct(ev) {
+  const dt = parseDate(ev);
+  const title = ev.name || '';
+  const city = ev.venue?.location?.city || '';
+  const country = countryName(ev.venue?.location?.country || '');
+  const stadium = ev.venue?.name || '';
+  const isMusic = ev.category === 'music';
+  const evWord = isMusic ? 'concert' : 'match';
+  const sitename = document.getElementById('sitename').value.trim() || 'Infotickets.com';
+  const sku = buildSKU(title, dt);
+  const handle = buildHandle(ev, dt);
+  const affUrl = buildAffUrl(ev, sku);
   const monthStr = MONTHS_LONG[dt.getMonth()];
-  const affUrl   = buildAffUrl(ev, sku);
-
-  const seoTitle = `Buy ${title} tickets${stadium ? ` at ${stadium}` : ''} | ${sitename}`;
-  const seoDesc  = `Enjoy the ${evWord} ${title} in ${city}${stadium ? ` at ${stadium}` : ''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
-  const dateMetafield = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
-
+  const seoTitle = `Buy ${title} tickets${stadium?` at ${stadium}`:''} | ${sitename}`;
+  const seoDesc = `Enjoy the ${evWord} ${title} in ${city}${stadium?` at ${stadium}`:''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
+  const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
   return {
     product: {
-      title,
-      handle,
-      vendor: 'Ticombo',
-      product_type: 'Tickets',
-      tags: ['Tickets'],
-      status: 'active',
-      template_suffix: 'viagogo-products',
-      variants: [{
-        sku,
-        price: '0.00',
-        inventory_management: 'shopify',
-        inventory_quantity: 100,
-        inventory_policy: 'deny',
-        fulfillment_service: 'manual',
-        taxable: true,
-        requires_shipping: false,
-        option1: 'Match Tickets'
-      }],
+      title, handle, vendor: 'Ticombo', product_type: 'Tickets', tags: ['Tickets'],
+      status: 'active', template_suffix: 'viagogo-products',
+      variants: [{ sku, price: '0.00', inventory_management: 'shopify', inventory_quantity: 100, inventory_policy: 'deny', fulfillment_service: 'manual', taxable: true, requires_shipping: false, option1: 'Match Tickets' }],
       options: [{ name: 'Category', values: ['Match Tickets'] }],
       metafields: [
-        { namespace: 'my_fields',  key: 'date_and_time', value: dateMetafield, type: 'date_time' },
-        { namespace: 'custom', key: 'estadio',      value: stadium,   type: 'single_line_text_field' },
-        { namespace: 'custom', key: 'ubicacion',    value: city,      type: 'single_line_text_field' },
-        { namespace: 'custom', key: 'tipo',         value: 'Tickets', type: 'single_line_text_field' },
-        { namespace: 'custom', key: 'competicion',  value: ev.subcategory || ev.category || '', type: 'single_line_text_field' },
-        { namespace: 'custom', key: 'country',      value: country,   type: 'single_line_text_field' },
+        { namespace: 'my_fields', key: 'date_and_time', value: dateMeta, type: 'date_time' },
+        { namespace: 'custom', key: 'estadio', value: stadium, type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'ubicacion', value: city, type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'tipo', value: 'Tickets', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'competicion', value: ev.subcategory || ev.category || '', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'country', value: country, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'additional_information', value: 'Some links on this page may lead to affiliate sites, which means Infotickets could earn a commission if you make a purchase, at no extra cost to you.', type: 'multi_line_text_field' },
-        { namespace: 'custom', key: 'viagogo_url',  value: affUrl,    type: 'url' },
+        { namespace: 'custom', key: 'viagogo_url', value: affUrl, type: 'url' },
       ],
       seo: { title: seoTitle, description: seoDesc }
     }
   };
 }
 
-// ── PUBLISH ───────────────────────────────────────────────────────────────────
+async function getShopifyToken() {
+  const clientId = document.getElementById('shop-client-id').value.trim();
+  const secret = document.getElementById('shop-secret').value.trim();
+  const store = document.getElementById('shop-store').value.trim();
+  const url = `${PROXY}${encodeURIComponent(`https://${store}/admin/oauth/access_token`)}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ client_id: clientId, client_secret: secret, grant_type: 'client_credentials' })
+  });
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.access_token;
+}
 
 async function publishToShopify() {
   if (!selectedEvents.length) return;
-
   const store = document.getElementById('shop-store').value.trim();
-  const btn   = document.getElementById('publish-btn');
+  const btn = document.getElementById('publish-btn');
   btn.disabled = true;
-  btn.textContent = 'Publicando...';
+  btn.textContent = '⏳ Publicando...';
   document.getElementById('log-box').innerHTML = '';
-
   try {
     log('Obteniendo token de Shopify...');
     shopifyToken = await getShopifyToken();
     log('Token obtenido ✓', 'success');
   } catch(e) {
     log(`Error de autenticación: ${e.message}`, 'error');
-    btn.disabled = false;
-    btn.textContent = 'Publicar eventos en Shopify';
-    return;
+    btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify'; return;
   }
-
   let ok = 0, fail = 0;
   for (const ev of selectedEvents) {
     try {
       log(`Publicando: ${ev.name}...`);
-      const product = buildProduct(ev);
-      const url = `${TICOMBO_PROXY}${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}`;
+      const product = buildShopifyProduct(ev);
+      const url = `${PROXY}${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': shopifyToken
-        },
+        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': shopifyToken },
         body: JSON.stringify(product)
       });
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err);
-      }
+      if (!res.ok) throw new Error(await res.text());
       log(`✓ Publicado: ${ev.name}`, 'success');
       ok++;
     } catch(e) {
@@ -408,14 +441,9 @@ async function publishToShopify() {
       fail++;
     }
   }
-
   log(`--- Finalizado: ${ok} publicados, ${fail} errores ---`, ok > 0 ? 'success' : 'error');
   btn.disabled = false;
-  btn.textContent = 'Publicar eventos en Shopify';
-
-  if (ok > 0) {
-    document.getElementById('publish-status').innerHTML = `<span style="color:#34c759">✓ ${ok} evento(s) publicados correctamente en Shopify</span>`;
-  }
+  btn.textContent = '🚀 Publicar en Shopify';
 }
 </script>
 </body>
