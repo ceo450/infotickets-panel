@@ -207,10 +207,10 @@ async function searchEvents() {
   document.getElementById('results-area').innerHTML = '<div class="loading">⏳ Buscando eventos...</div>';
   document.getElementById('search-btn').disabled = true;
 
-  const url = `${TICOMBO_PROXY}${encodeURIComponent(`${TICOMBO_BASE}/events?name=${encodeURIComponent(q)}&limit=50&hasTickets=true`)}`;
+  const url = `${TICOMBO_PROXY}${encodeURIComponent(`${TICOMBO_BASE}/events?name=${encodeURIComponent(q)}&limit=50&hasTickets=true`)}&apikey=${encodeURIComponent(key)}`;
 
   try {
-    const res = await fetch(url, { headers: { 'x-api-key': key } });
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Error ${res.status}`);
     const data = await res.json();
     renderResults(data.data || []);
