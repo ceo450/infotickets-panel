@@ -110,6 +110,32 @@
 
 <script>
 const TICOMBO_BASE = 'https://external-api.devtic.net/affiliate/v1';
+
+// ── GUARDAR / CARGAR CONFIGURACIÓN ───────────────────────────────────────────
+const CONFIG_FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret'];
+
+function saveConfig() {
+  CONFIG_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) localStorage.setItem('it_' + id, el.value);
+  });
+}
+
+function loadConfig() {
+  CONFIG_FIELDS.forEach(id => {
+    const val = localStorage.getItem('it_' + id);
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  CONFIG_FIELDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', saveConfig);
+  });
+});
 const TICOMBO_PROXY = 'https://ticombo-proxy.ceo-aed.workers.dev/?url=';
 
 let selectedEvents = [];
