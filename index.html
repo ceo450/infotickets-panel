@@ -17,7 +17,6 @@
   .container { max-width: 1000px; margin: 32px auto; padding: 0 24px; }
   .card { background: white; border-radius: 12px; border: 1px solid #e5e5e7; padding: 24px; margin-bottom: 20px; }
   .card-title { font-size: 13px; font-weight: 600; color: #6e6e73; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 16px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 12px; color: #6e6e73; }
@@ -51,6 +50,7 @@
   .results-list { max-height: 380px; overflow-y: auto; }
   .loading { text-align: center; padding: 32px; color: #6e6e73; font-size: 14px; }
   .error-box { background: #fff2f2; border: 1px solid #ffb3b3; border-radius: 8px; padding: 12px 16px; color: #ff3b30; font-size: 13px; margin-top: 8px; }
+  .success-box { background: #f0fff4; border: 1px solid #86efac; border-radius: 8px; padding: 12px 16px; color: #16a34a; font-size: 13px; margin-top: 8px; }
   .tip { background: #f0f7ff; border-left: 3px solid #0071e3; border-radius: 6px; padding: 10px 14px; font-size: 12px; color: #0071e3; margin-bottom: 14px; }
   .sel-count { background: #34c759; color: white; font-size: 12px; padding: 2px 8px; border-radius: 20px; margin-left: 8px; }
   .log-box { background: #1d1d1f; color: #30d158; font-family: monospace; font-size: 12px; border-radius: 8px; padding: 14px; max-height: 200px; overflow-y: auto; margin-top: 12px; display: none; }
@@ -58,11 +58,14 @@
   .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .preview-table td { padding: 8px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: top; word-break: break-all; }
   .preview-table tr:last-child td { border-bottom: none; }
-  .preview-table td:first-child { color: #6e6e73; font-weight: 500; width: 200px; word-break: normal; white-space: nowrap; }
+  .preview-table td:first-child { color: #6e6e73; font-weight: 500; width: 180px; word-break: normal; white-space: nowrap; }
   .preview-scroll { max-height: 350px; overflow-y: auto; border: 1px solid #e5e5e7; border-radius: 8px; }
+  .shopify-status { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 10px 14px; border-radius: 8px; margin-bottom: 16px; }
+  .shopify-status.connected { background: #f0fff4; color: #16a34a; border: 1px solid #86efac; }
+  .shopify-status.disconnected { background: #fff2f2; color: #ff3b30; border: 1px solid #ffb3b3; }
   .config-saved { font-size: 11px; color: #34c759; margin-left: 8px; font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0; transition: opacity .3s; }
   .config-saved.show { opacity: 1; }
-  @media (max-width: 600px) { .grid2, .grid3 { grid-template-columns: 1fr; } header { padding: 0 16px; } }
+  @media (max-width: 600px) { .grid3 { grid-template-columns: 1fr; } header { padding: 0 16px; } }
 </style>
 </head>
 <body>
@@ -76,6 +79,9 @@
 <!-- PAGE: PANEL -->
 <div class="page active" id="page-panel">
 <div class="container">
+
+  <!-- Shopify status -->
+  <div id="shopify-status-bar"></div>
 
   <!-- PASO 1 -->
   <div class="card">
@@ -119,7 +125,11 @@
 <div class="page" id="page-config">
 <div class="container">
   <div class="card">
-    <p class="card-title">⚙️ Configuración <span class="config-saved" id="config-saved">● Guardado</span></p>
+    <p class="card-title">🔗 Conexión con Shopify <span class="config-saved" id="shopify-connect-status"></span></p>
+    <div id="shopify-auth-area"></div>
+  </div>
+  <div class="card">
+    <p class="card-title">⚙️ Configuración Ticombo <span class="config-saved" id="config-saved">● Guardado</span></p>
     <div class="grid3" style="margin-bottom:16px">
       <div class="field"><label>API Key Ticombo</label><input type="password" id="ticombo-key" placeholder="lYcEDOk4u..." /></div>
       <div class="field"><label>Código afiliado (camref)</label><input type="text" id="camref" placeholder="1011l4ZQWz" /></div>
@@ -136,7 +146,7 @@
 </div>
 
 <script>
-const PROXY = 'https://ticombo-proxy.ceo-aed.workers.dev/?url=';
+const PROXY = 'https://ticombo-proxy.ceo-aed.workers.dev';
 const TICOMBO = 'https://external-api.devtic.net/affiliate/v1';
 
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
@@ -145,6 +155,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'config') renderAuthArea();
 }
 
 // ── CONFIG PERSISTENCE ────────────────────────────────────────────────────────
@@ -153,23 +164,95 @@ let saveTimer;
 function saveConfig() {
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) localStorage.setItem('it_'+id, el.value); });
   const badge = document.getElementById('config-saved');
-  badge.classList.add('show');
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => badge.classList.remove('show'), 2000);
+  if (badge) { badge.textContent = '● Guardado'; badge.classList.add('show'); clearTimeout(saveTimer); saveTimer = setTimeout(() => badge.classList.remove('show'), 2000); }
 }
 function loadConfig() {
   FIELDS.forEach(id => { const v = localStorage.getItem('it_'+id); const el = document.getElementById(id); if(el && v) el.value = v; });
 }
-document.addEventListener('DOMContentLoaded', () => {
-  loadConfig();
-  FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
-});
+
+// ── SHOPIFY AUTH ──────────────────────────────────────────────────────────────
+let shopifyToken = localStorage.getItem('shopify_token') || null;
+
+function renderShopifyStatusBar() {
+  const bar = document.getElementById('shopify-status-bar');
+  if (!bar) return;
+  if (shopifyToken) {
+    bar.innerHTML = `<div class="shopify-status connected">✅ Shopify conectado correctamente — <a href="#" onclick="disconnectShopify();return false;" style="color:#16a34a;margin-left:8px">Desconectar</a></div>`;
+  } else {
+    bar.innerHTML = `<div class="shopify-status disconnected">⚠️ Shopify no conectado — <a href="#" onclick="showPage('config');return false;" style="color:#ff3b30;margin-left:8px">Conectar ahora</a></div>`;
+  }
+}
+
+function renderAuthArea() {
+  const area = document.getElementById('shopify-auth-area');
+  if (!area) return;
+  if (shopifyToken) {
+    area.innerHTML = `<div class="success-box">✅ Shopify conectado correctamente.<br><br><button class="btn-danger btn-sm" onclick="disconnectShopify()">Desconectar Shopify</button></div>`;
+  } else {
+    area.innerHTML = `<div class="tip">Para conectar Shopify haz clic en el botón de abajo. Solo necesitas hacerlo una vez.</div>
+    <button class="btn-primary" onclick="connectShopify()">🔗 Conectar con Shopify</button>`;
+  }
+}
+
+function connectShopify() {
+  const clientId = document.getElementById('shop-client-id').value.trim();
+  const store = document.getElementById('shop-store').value.trim();
+  if (!clientId || !store) { alert('Introduce primero el Shopify Store y el Client ID en la configuración'); return; }
+  const redirectUri = 'https://ceo450.github.io/infotickets-panel/';
+  const authUrl = `https://${store}/admin/oauth/authorize?client_id=${clientId}&scope=write_products,read_products&redirect_uri=${encodeURIComponent(redirectUri)}&state=install`;
+  window.location.href = authUrl;
+}
+
+function disconnectShopify() {
+  shopifyToken = null;
+  localStorage.removeItem('shopify_token');
+  renderAuthArea();
+  renderShopifyStatusBar();
+}
+
+async function handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const shop = params.get('shop');
+  if (!code || !shop) return;
+
+  // Limpiar la URL
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  const clientId = localStorage.getItem('it_shop-client-id') || '';
+  const secret = localStorage.getItem('it_shop-secret') || '';
+
+  if (!clientId || !secret) {
+    alert('Faltan el Client ID o Secret en la configuración. Por favor configúralos primero.');
+    showPage('config');
+    return;
+  }
+
+  try {
+    const res = await fetch(`${PROXY}/shopify-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop, code, client_id: clientId, client_secret: secret })
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      shopifyToken = data.access_token;
+      localStorage.setItem('shopify_token', shopifyToken);
+      renderShopifyStatusBar();
+      renderAuthArea();
+      alert('✅ Shopify conectado correctamente!');
+    } else {
+      throw new Error(JSON.stringify(data));
+    }
+  } catch(e) {
+    alert('Error al obtener token de Shopify: ' + e.message);
+  }
+}
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let selectedEntity = null;
 let allEvents = [];
 let selectedEvents = [];
-let shopifyToken = null;
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const pad = n => String(n).padStart(2,'0');
@@ -212,7 +295,7 @@ function catBadge(cat) {
 }
 function apiUrl(endpoint) {
   const key = document.getElementById('ticombo-key').value.trim();
-  return `${PROXY}${encodeURIComponent(`${TICOMBO}${endpoint}`)}&apikey=${encodeURIComponent(key)}`;
+  return `${PROXY}/?url=${encodeURIComponent(`${TICOMBO}${endpoint}`)}&apikey=${encodeURIComponent(key)}`;
 }
 function log(msg, type='info') {
   const box = document.getElementById('log-box');
@@ -336,12 +419,13 @@ function updatePreview() {
     const seoTitle = `Buy ${title} tickets${stadium?` at ${stadium}`:''} | ${sitename}`;
     const seoDesc = `Enjoy the ${evWord} ${title} in ${city}${stadium?` at ${stadium}`:''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
     const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
+    const competition = ev.competition?.name || ev.competition || ev.subcategory || ev.category || '';
     const rows = [
       ['Title', title], ['Handle', handle], ['SKU', sku],
       ['Template Suffix', 'viagogo-products'], ['SEO Title', seoTitle],
       ['SEO Description', seoDesc], ['date_and_time', dateMeta],
       ['estadio', stadium], ['ubicacion', city], ['country', country],
-      ['competicion', ev.competition?.name || ev.competition || ev.subcategory || ev.category || ''], ['tipo', 'Tickets'],
+      ['competicion', competition], ['tipo', 'Tickets'],
       ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${affUrl}</span>`],
     ];
     return `<div style="margin-bottom:20px">
@@ -354,7 +438,7 @@ function updatePreview() {
   }).join('');
 }
 
-// ── SHOPIFY ───────────────────────────────────────────────────────────────────
+// ── SHOPIFY PUBLISH ───────────────────────────────────────────────────────────
 function buildShopifyProduct(ev) {
   const dt = parseDate(ev);
   const title = ev.name || '';
@@ -371,6 +455,7 @@ function buildShopifyProduct(ev) {
   const seoTitle = `Buy ${title} tickets${stadium?` at ${stadium}`:''} | ${sitename}`;
   const seoDesc = `Enjoy the ${evWord} ${title} in ${city}${stadium?` at ${stadium}`:''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
   const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
+  const competition = ev.competition?.name || ev.competition || ev.subcategory || ev.category || '';
   return {
     product: {
       title, handle, vendor: 'Ticombo', product_type: 'Tickets', tags: ['Tickets'],
@@ -382,7 +467,7 @@ function buildShopifyProduct(ev) {
         { namespace: 'custom', key: 'estadio', value: stadium, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'ubicacion', value: city, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'tipo', value: 'Tickets', type: 'single_line_text_field' },
-        { namespace: 'custom', key: 'competicion', value: ev.competition?.name || ev.competition || ev.subcategory || ev.category || '', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'competicion', value: competition, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'country', value: country, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'additional_information', value: 'Some links on this page may lead to affiliate sites, which means Infotickets could earn a commission if you make a purchase, at no extra cost to you.', type: 'multi_line_text_field' },
         { namespace: 'custom', key: 'viagogo_url', value: affUrl, type: 'url' },
@@ -392,45 +477,24 @@ function buildShopifyProduct(ev) {
   };
 }
 
-async function getShopifyToken() {
-  const clientId = document.getElementById('shop-client-id').value.trim();
-  const secret = document.getElementById('shop-secret').value.trim();
-  const store = document.getElementById('shop-store').value.trim();
-  const url = `${PROXY}${encodeURIComponent(`https://${store}/admin/oauth/access_token`)}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ client_id: clientId, client_secret: secret, grant_type: 'client_credentials' })
-  });
-  if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-  return data.access_token;
-}
-
 async function publishToShopify() {
   if (!selectedEvents.length) return;
+  if (!shopifyToken) { alert('Shopify no está conectado. Ve a ⚙️ Configuración para conectarlo.'); showPage('config'); return; }
   const store = document.getElementById('shop-store').value.trim();
   const btn = document.getElementById('publish-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Publicando...';
   document.getElementById('log-box').innerHTML = '';
-  try {
-    log('Obteniendo token de Shopify...');
-    shopifyToken = await getShopifyToken();
-    log('Token obtenido ✓', 'success');
-  } catch(e) {
-    log(`Error de autenticación: ${e.message}`, 'error');
-    btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify'; return;
-  }
+
   let ok = 0, fail = 0;
   for (const ev of selectedEvents) {
     try {
       log(`Publicando: ${ev.name}...`);
       const product = buildShopifyProduct(ev);
-      const url = `${PROXY}${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}`;
+      const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(shopifyToken)}`;
       const res = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': shopifyToken },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(product)
       });
       if (!res.ok) throw new Error(await res.text());
@@ -445,6 +509,14 @@ async function publishToShopify() {
   btn.disabled = false;
   btn.textContent = '🚀 Publicar en Shopify';
 }
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadConfig();
+  FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
+  handleOAuthCallback();
+  renderShopifyStatusBar();
+});
 </script>
 </body>
 </html>
