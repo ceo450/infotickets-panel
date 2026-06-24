@@ -418,7 +418,7 @@ function updatePreview() {
     const monthStr = MONTHS_LONG[dt.getMonth()];
     const seoTitle = `Buy ${title} tickets${stadium?` at ${stadium}`:''} | ${sitename}`;
     const seoDesc = `Enjoy the ${evWord} ${title} in ${city}${stadium?` at ${stadium}`:''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
-    const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
+    const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00`;
     const competition = ev.competition?.name || ev.competition || ev.subcategory || ev.category || '';
     const rows = [
       ['Title', title], ['Handle', handle], ['SKU', sku],
@@ -454,7 +454,7 @@ function buildShopifyProduct(ev) {
   const monthStr = MONTHS_LONG[dt.getMonth()];
   const seoTitle = `Buy ${title} tickets${stadium?` at ${stadium}`:''} | ${sitename}`;
   const seoDesc = `Enjoy the ${evWord} ${title} in ${city}${stadium?` at ${stadium}`:''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`;
-  const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:00 -0400`;
+  const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00`;
   const competition = ev.competition?.name || ev.competition || ev.subcategory || ev.category || '';
   return {
     product: {
