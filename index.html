@@ -289,6 +289,10 @@ function buildAffUrl(ev, sku) {
 function countryName(code) {
   try { return new Intl.DisplayNames(['en'],{type:'region'}).of(code)||code; } catch(e) { return code||''; }
 }
+function flagEmoji(code) {
+  if (!code || code.length !== 2) return '';
+  return code.toUpperCase().replace(/./g, c => String.fromCodePoint(127397 + c.charCodeAt(0)));
+}
 function catBadge(cat) {
   const cls = cat==='music'?'badge-music':cat==='sports'?'badge-sports':'badge-other';
   return cat ? `<span class="badge ${cls}">${cat}</span>` : '';
@@ -375,7 +379,7 @@ function renderEvents() {
     const dateStr = dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
     return `<div class="event-item${isSel?' selected':''}" onclick='toggleEvent("${ev.eventId}")'>
       <div>
-        <div class="event-name">${ev.name} ${catBadge(ev.category)}</div>
+        <div class="event-name">${ev.name} ${flagEmoji(ev.venue?.location?.country||'')} ${catBadge(ev.category)}</div>
         <div class="event-meta">${dateStr} · ${ev.venue?.name||''} · ${ev.venue?.location?.city||''}, ${ev.venue?.location?.country||''}</div>
       </div>
       <span class="${isSel?'check-icon':'plus-icon'}">${isSel?'✓':'+'}</span>
@@ -407,6 +411,8 @@ function updatePreview() {
   document.getElementById('preview-area').innerHTML = selectedEvents.map((ev, i) => {
     const dt = parseDate(ev);
     const title = ev.name || '';
+    const flag = flagEmoji(ev.venue?.location?.country || '');
+    const titleFlag = flag ? `${title} ${flag}` : title;
     const city = ev.venue?.location?.city || '';
     const country = countryName(ev.venue?.location?.country || '');
     const stadium = ev.venue?.name || '';
@@ -421,7 +427,7 @@ function updatePreview() {
     const dateMeta = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00-04:00`;
     const competition = ev.competition?.name || ev.competition || ev.subcategory || ev.category || '';
     const rows = [
-      ['Title', title], ['Handle', handle], ['SKU', sku],
+      ['Title', titleFlag], ['Handle', handle], ['SKU', sku],
       ['Template Suffix', 'viagogo-products'], ['SEO Title', seoTitle],
       ['SEO Description', seoDesc], ['date_and_time', dateMeta],
       ['estadio', stadium], ['ubicacion', city], ['country', country],
@@ -442,6 +448,8 @@ function updatePreview() {
 function buildShopifyProduct(ev) {
   const dt = parseDate(ev);
   const title = ev.name || '';
+  const flag = flagEmoji(ev.venue?.location?.country || '');
+  const titleFlag = flag ? `${title} ${flag}` : title;
   const city = ev.venue?.location?.city || '';
   const country = countryName(ev.venue?.location?.country || '');
   const stadium = ev.venue?.name || '';
@@ -458,7 +466,7 @@ function buildShopifyProduct(ev) {
   const competition = ev.competition?.name || ev.competition || ev.subcategory || ev.category || '';
   return {
     product: {
-      title, handle, vendor: 'Ticombo', product_type: 'Tickets', tags: ['Tickets'],
+      title: titleFlag, handle, vendor: 'Ticombo', product_type: 'Tickets', tags: ['Tickets'],
       status: 'active', template_suffix: 'viagogo-products',
       variants: [{ sku, price: '0.00', inventory_management: 'shopify', inventory_quantity: 100, inventory_policy: 'deny', fulfillment_service: 'manual', taxable: true, requires_shipping: false, option1: 'Match Tickets' }],
       options: [{ name: 'Category', values: ['Match Tickets'] }],
