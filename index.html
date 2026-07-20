@@ -159,21 +159,24 @@ function saveConfig() {
 function loadConfig() {
   FIELDS.forEach(id => { const v = localStorage.getItem('it_'+id); const el = document.getElementById(id); if(el && v) el.value = v; });
 }
+// Quita comillas, espacios y saltos de línea sobrantes que a veces se cuelan al copiar/pegar
+// o que el autocompletado del navegador reinserta en campos type=password.
+function cleanField(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  return (el.value || '').trim().replace(/^["'\s]+|["'\s]+$/g, '').trim();
+}
 // ── SHOPIFY AUTH (Client Credentials Grant) ────────────────────────────────────
 let shopifyToken = null;
 let shopifyTokenExpiry = 0;
 function shopifyConfigured() {
-  return !!(
-    document.getElementById('shop-store').value.trim() &&
-    document.getElementById('shop-client-id').value.trim() &&
-    document.getElementById('shop-secret').value.trim()
-  );
+  return !!(cleanField('shop-store') && cleanField('shop-client-id') && cleanField('shop-secret'));
 }
 function renderShopifyStatusBar() {
   const bar = document.getElementById('shopify-status-bar');
   if (!bar) return;
   if (shopifyConfigured()) {
-    const store = document.getElementById('shop-store').value.trim();
+    const store = cleanField('shop-store');
     bar.innerHTML = `<div class="shopify-status connected">✅ Shopify configurado (${store})</div>`;
   } else {
     bar.innerHTML = `<div class="shopify-status disconnected">⚠️ Shopify no configurado — <a href="#" onclick="showPage('config');return false;" style="color:#ff3b30;margin-left:8px">Configurar ahora</a></div>`;
@@ -203,9 +206,9 @@ function extractShopifyError(status, raw) {
 async function getShopifyToken() {
   const now = Date.now();
   if (shopifyToken && now < shopifyTokenExpiry) return shopifyToken;
-  const store = document.getElementById('shop-store').value.trim();
-  const clientId = document.getElementById('shop-client-id').value.trim();
-  const secret = document.getElementById('shop-secret').value.trim();
+  const store = cleanField('shop-store');
+  const clientId = cleanField('shop-client-id');
+  const secret = cleanField('shop-secret');
   if (!store || !clientId || !secret) throw new Error('Faltan datos de Shopify en ⚙️ Configuración');
   const res = await fetch(`${PROXY}/shopify-cc-token`, {
     method: 'POST',
@@ -268,7 +271,7 @@ function buildHandle(ev, dt) {
   return `${base}-tickets`;
 }
 function buildAffUrl(ev, sku) {
-  const camref = document.getElementById('camref').value.trim();
+  const camref = cleanField('camref');
   const pid = ev.eventId || '';
   const dest = ev.shortUrl || `https://www.ticombo.com/en/event/${pid}`;
   return `https://ticombo.prf.hn/click/camref:${camref}/pubref:Web/ar:${sku}/[p_id:${pid}]/destination:${encodeURIComponent(dest)}`;
@@ -285,7 +288,7 @@ function catBadge(cat) {
   return cat ? `<span class="badge ${cls}">${cat}</span>` : '';
 }
 function apiUrl(endpoint) {
-  const key = document.getElementById('ticombo-key').value.trim();
+  const key = cleanField('ticombo-key');
   return `${PROXY}/?url=${encodeURIComponent(`${TICOMBO}${endpoint}`)}&apikey=${encodeURIComponent(key)}`;
 }
 function log(msg, type='info') {
@@ -299,7 +302,7 @@ function log(msg, type='info') {
 async function searchEntities() {
   const q = document.getElementById('entity-input').value.trim();
   if (!q) return;
-  const key = document.getElementById('ticombo-key').value.trim();
+  const key = cleanField('ticombo-key');
   if (!key) { alert('Añade primero el API Key de Ticombo en ⚙️ Configuración'); showPage('config'); return; }
   const el = document.getElementById('entity-results');
   el.innerHTML = '<div class="loading">⏳ Buscando...</div>';
@@ -466,7 +469,7 @@ function buildShopifyProduct(ev) {
 async function publishToShopify() {
   if (!selectedEvents.length) return;
   if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
-  const store = document.getElementById('shop-store').value.trim();
+  const store = cleanField('shop-store');
   const btn = document.getElementById('publish-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Publicando...';
