@@ -165,87 +165,80 @@ function saveConfig() {
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) localStorage.setItem('it_'+id, el.value); });
   const badge = document.getElementById('config-saved');
   if (badge) { badge.textContent = '● Guardado'; badge.classList.add('show'); clearTimeout(saveTimer); saveTimer = setTimeout(() => badge.classList.remove('show'), 2000); }
+  renderShopifyStatusBar();
 }
 function loadConfig() {
   FIELDS.forEach(id => { const v = localStorage.getItem('it_'+id); const el = document.getElementById(id); if(el && v) el.value = v; });
 }
 
-// ── SHOPIFY AUTH ──────────────────────────────────────────────────────────────
-let shopifyToken = localStorage.getItem('shopify_token') || null;
+// ── SHOPIFY AUTH (Client Credentials Grant) ────────────────────────────────────
+// Las apps del Dev Dashboard de Shopify (desde 2026) ya no dan un token permanente.
+// En su lugar, pedimos un token nuevo (válido 24h) cada vez que hace falta, usando
+// el Client ID + Secret guardados en Configuración.
+let shopifyToken = null;
+let shopifyTokenExpiry = 0;
+
+function shopifyConfigured() {
+  return !!(
+    document.getElementById('shop-store').value.trim() &&
+    document.getElementById('shop-client-id').value.trim() &&
+    document.getElementById('shop-secret').value.trim()
+  );
+}
 
 function renderShopifyStatusBar() {
   const bar = document.getElementById('shopify-status-bar');
   if (!bar) return;
-  if (shopifyToken) {
-    bar.innerHTML = `<div class="shopify-status connected">✅ Shopify conectado correctamente — <a href="#" onclick="disconnectShopify();return false;" style="color:#16a34a;margin-left:8px">Desconectar</a></div>`;
+  if (shopifyConfigured()) {
+    const store = document.getElementById('shop-store').value.trim();
+    bar.innerHTML = `<div class="shopify-status connected">✅ Shopify configurado (${store})</div>`;
   } else {
-    bar.innerHTML = `<div class="shopify-status disconnected">⚠️ Shopify no conectado — <a href="#" onclick="showPage('config');return false;" style="color:#ff3b30;margin-left:8px">Conectar ahora</a></div>`;
+    bar.innerHTML = `<div class="shopify-status disconnected">⚠️ Shopify no configurado — <a href="#" onclick="showPage('config');return false;" style="color:#ff3b30;margin-left:8px">Configurar ahora</a></div>`;
   }
 }
 
 function renderAuthArea() {
   const area = document.getElementById('shopify-auth-area');
   if (!area) return;
-  if (shopifyToken) {
-    area.innerHTML = `<div class="success-box">✅ Shopify conectado correctamente.<br><br><button class="btn-danger btn-sm" onclick="disconnectShopify()">Desconectar Shopify</button></div>`;
-  } else {
-    area.innerHTML = `<div class="tip">Para conectar Shopify haz clic en el botón de abajo. Solo necesitas hacerlo una vez.</div>
-    <button class="btn-primary" onclick="connectShopify()">🔗 Conectar con Shopify</button>`;
-  }
+  area.innerHTML = `<div class="tip">Rellena Store, Client ID y Secret aquí abajo, y pulsa "Probar conexión". No hace falta ningún login adicional — el panel pide un token nuevo automáticamente cada vez que lo necesita.</div>
+  <button class="btn-primary" onclick="testShopifyConnection()">🔌 Probar conexión</button>
+  <div id="shopify-test-result" style="margin-top:10px"></div>`;
 }
 
-function connectShopify() {
-  const clientId = document.getElementById('shop-client-id').value.trim();
+async function getShopifyToken() {
+  const now = Date.now();
+  if (shopifyToken && now < shopifyTokenExpiry) return shopifyToken;
+
   const store = document.getElementById('shop-store').value.trim();
-  if (!clientId || !store) { alert('Introduce primero el Shopify Store y el Client ID en la configuración'); return; }
-  const redirectUri = 'https://ceo450.github.io/infotickets-panel/';
-  const authUrl = `https://${store}/admin/oauth/authorize?client_id=${clientId}&scope=write_products,read_products&redirect_uri=${encodeURIComponent(redirectUri)}&state=install`;
-  window.location.href = authUrl;
-}
+  const clientId = document.getElementById('shop-client-id').value.trim();
+  const secret = document.getElementById('shop-secret').value.trim();
+  if (!store || !clientId || !secret) throw new Error('Faltan datos de Shopify en ⚙️ Configuración');
 
-function disconnectShopify() {
-  shopifyToken = null;
-  localStorage.removeItem('shopify_token');
-  renderAuthArea();
-  renderShopifyStatusBar();
-}
-
-async function handleOAuthCallback() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('code');
-  const shop = params.get('shop');
-  if (!code || !shop) return;
-
-  // Limpiar la URL
-  window.history.replaceState({}, document.title, window.location.pathname);
-
-  const clientId = localStorage.getItem('it_shop-client-id') || '';
-  const secret = localStorage.getItem('it_shop-secret') || '';
-
-  if (!clientId || !secret) {
-    alert('Faltan el Client ID o Secret en la configuración. Por favor configúralos primero.');
-    showPage('config');
-    return;
+  const res = await fetch(`${PROXY}/shopify-cc-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ shop: store, client_id: clientId, client_secret: secret })
+  });
+  const data = await res.json();
+  if (!data.access_token) {
+    throw new Error(data.error_description || data.errors || JSON.stringify(data));
   }
 
+  shopifyToken = data.access_token;
+  // Renovamos 60s antes de que caduque de verdad (dura 24h = 86399s)
+  shopifyTokenExpiry = now + (data.expires_in - 60) * 1000;
+  return shopifyToken;
+}
+
+async function testShopifyConnection() {
+  const resultEl = document.getElementById('shopify-test-result');
+  resultEl.innerHTML = '⏳ Probando conexión...';
   try {
-    const res = await fetch(`${PROXY}/shopify-token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shop, code, client_id: clientId, client_secret: secret })
-    });
-    const data = await res.json();
-    if (data.access_token) {
-      shopifyToken = data.access_token;
-      localStorage.setItem('shopify_token', shopifyToken);
-      renderShopifyStatusBar();
-      renderAuthArea();
-      alert('✅ Shopify conectado correctamente!');
-    } else {
-      throw new Error(JSON.stringify(data));
-    }
+    await getShopifyToken();
+    resultEl.innerHTML = '<div class="success-box">✅ Conexión correcta — token obtenido de Shopify.</div>';
+    renderShopifyStatusBar();
   } catch(e) {
-    alert('Error al obtener token de Shopify: ' + e.message);
+    resultEl.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
   }
 }
 
@@ -260,7 +253,7 @@ const MONTHS_EN   = ['january','february','march','april','may','june','july','a
 const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 function slugify(s) {
-  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+  return (s||'').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'')
     .replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim();
 }
 function parseDate(ev) {
@@ -487,19 +480,31 @@ function buildShopifyProduct(ev) {
 
 async function publishToShopify() {
   if (!selectedEvents.length) return;
-  if (!shopifyToken) { alert('Shopify no está conectado. Ve a ⚙️ Configuración para conectarlo.'); showPage('config'); return; }
+  if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
   const store = document.getElementById('shop-store').value.trim();
   const btn = document.getElementById('publish-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Publicando...';
   document.getElementById('log-box').innerHTML = '';
 
+  let token;
+  try {
+    log('Obteniendo token de Shopify...');
+    token = await getShopifyToken();
+    log('✓ Token obtenido', 'success');
+  } catch(e) {
+    log(`✗ No se pudo obtener token de Shopify: ${e.message}`, 'error');
+    btn.disabled = false;
+    btn.textContent = '🚀 Publicar en Shopify';
+    return;
+  }
+
   let ok = 0, fail = 0;
   for (const ev of selectedEvents) {
     try {
       log(`Publicando: ${ev.name}...`);
       const product = buildShopifyProduct(ev);
-      const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(shopifyToken)}`;
+      const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -522,7 +527,6 @@ async function publishToShopify() {
 document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
-  handleOAuthCallback();
   renderShopifyStatusBar();
 });
 </script>
