@@ -480,6 +480,14 @@ function buildShopifyProduct(ev) {
     }
   };
 }
+// Busca si ya existe un producto en Shopify con ese handle (evita duplicados)
+async function findExistingProduct(store, token, handle) {
+  const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json?handle=${encodeURIComponent(handle)}&limit=1`)}&shopify_token=${encodeURIComponent(token)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return (data.products && data.products[0]) || null;
+}
 async function publishToShopify() {
   if (!selectedEvents.length) return;
   if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
@@ -502,16 +510,29 @@ async function publishToShopify() {
   let ok = 0, fail = 0;
   for (const ev of selectedEvents) {
     try {
-      log(`Publicando: ${ev.name}...`);
       const product = buildShopifyProduct(ev);
-      const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
+      const handle = product.product.handle;
+      log(`Comprobando si "${ev.name}" ya existe...`);
+      const existing = await findExistingProduct(store, token, handle);
+      let url, method;
+      if (existing) {
+        if (existing.variants && existing.variants[0]) {
+          product.product.variants[0].id = existing.variants[0].id;
+        }
+        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products/${existing.id}.json`)}&shopify_token=${encodeURIComponent(token)}`;
+        method = 'PUT';
+        log(`  → ya existe (ID ${existing.id}), actualizando en vez de duplicar...`);
+      } else {
+        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
+        method = 'POST';
+      }
       const res = await fetch(url, {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(product)
       });
       if (!res.ok) throw new Error(await res.text());
-      log(`✓ Publicado: ${ev.name}`, 'success');
+      log(existing ? `✓ Actualizado: ${ev.name}` : `✓ Publicado: ${ev.name}`, 'success');
       ok++;
     } catch(e) {
       log(`✗ Error en ${ev.name}: ${e.message}`, 'error');
