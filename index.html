@@ -270,10 +270,24 @@ function buildHandle(ev, dt) {
   }
   return `${base}-tickets`;
 }
+// Reconstruye la URL pública real del evento en ticombo.com a partir de los
+// datos que ya tenemos, con el mismo patrón que usa el sitio:
+// /{lang}/{categoria}-tickets/{subcategoria}-tickets/{nombre-slug}-{fechacodigo}/{eventId}
+function buildTicomboEventUrl(ev, dt) {
+  const category = (ev.category || 'other').toLowerCase();
+  const subcategory = (ev.subcategory || ev.category || 'other').toLowerCase();
+  const nameSlug = slugify(ev.name || '');
+  const dateCode = `${pad((dt.getFullYear())%100)}${pad(dt.getMonth()+1)}${pad(dt.getDate())}${pad(dt.getHours())}${pad(dt.getMinutes())}`;
+  const pid = ev.eventId || '';
+  return `https://www.ticombo.com/en/${category}-tickets/${subcategory}-tickets/${nameSlug}-${dateCode}/${pid}`;
+}
 function buildAffUrl(ev, sku) {
+  // Formato Partnerize (el que realmente usa Miquel para cobrar comisiones).
+  // Pendiente de confirmar con Ticombo/Partnerize: de dónde sale el p_id correcto.
   const camref = cleanField('camref');
   const pid = ev.eventId || '';
-  const dest = ev.shortUrl || `https://www.ticombo.com/en/event/${pid}`;
+  const dt = parseDate(ev);
+  const dest = buildTicomboEventUrl(ev, dt);
   return `https://ticombo.prf.hn/click/camref:${camref}/pubref:Web/ar:${sku}/[p_id:${pid}]/destination:${encodeURIComponent(dest)}`;
 }
 function countryName(code) {
