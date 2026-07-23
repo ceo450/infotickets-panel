@@ -243,6 +243,37 @@ async function testShopifyConnection() {
     resultEl.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
   }
 }
+// ── SHOPIFY RATE LIMITING ──────────────────────────────────────────────────────
+// El plan básico de Shopify limita la API REST a 2 llamadas/segundo.
+// Esta cola global espacia cada llamada al menos 550ms y reintenta con espera
+// cuando llega el error de límite o un fallo de red puntual.
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+let lastShopifyCallAt = 0;
+async function shopifyThrottle() {
+  const wait = lastShopifyCallAt + 550 - Date.now();
+  if (wait > 0) await sleep(wait);
+  lastShopifyCallAt = Date.now();
+}
+async function shopifyFetch(url, options, maxRetries = 6) {
+  let lastErr;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    await shopifyThrottle();
+    try {
+      const res = await fetch(url, options);
+      if (res.status === 429) {
+        lastErr = new Error('Rate limit de Shopify, reintentando...');
+        await sleep(1200 + attempt * 500);
+        continue;
+      }
+      return res;
+    } catch (e) {
+      lastErr = e;
+      if (attempt === maxRetries) throw e;
+      await sleep(800 + attempt * 400);
+    }
+  }
+  throw lastErr;
+}
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let selectedEntity = null;
 let allEvents = [];
@@ -496,7 +527,7 @@ function buildShopifyProduct(ev) {
 // Busca si ya existe un producto en Shopify con ese handle (evita duplicados)
 async function findExistingProduct(store, token, handle) {
   const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json?handle=${encodeURIComponent(handle)}&limit=1`)}&shopify_token=${encodeURIComponent(token)}`;
-  const res = await fetch(url);
+  const res = await shopifyFetch(url);
   if (!res.ok) throw new Error(await res.text());
   const data = await res.json();
   return (data.products && data.products[0]) || null;
@@ -521,11 +552,12 @@ async function publishToShopify() {
     return;
   }
   let ok = 0, fail = 0;
-  for (const ev of selectedEvents) {
+  for (let i = 0; i < selectedEvents.length; i++) {
+    const ev = selectedEvents[i];
     try {
       const product = buildShopifyProduct(ev);
       const handle = product.product.handle;
-      log(`Comprobando si "${ev.name}" ya existe...`);
+      log(`[${i+1}/${selectedEvents.length}] Comprobando si "${ev.name}" ya existe...`);
       const existing = await findExistingProduct(store, token, handle);
       let url, method;
       if (existing) {
@@ -539,7 +571,7 @@ async function publishToShopify() {
         url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
         method = 'POST';
       }
-      const res = await fetch(url, {
+      const res = await shopifyFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(product)
