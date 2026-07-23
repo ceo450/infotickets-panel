@@ -65,12 +65,14 @@
   .shopify-status.disconnected { background: #fff2f2; color: #ff3b30; border: 1px solid #ffb3b3; }
   .config-saved { font-size: 11px; color: #34c759; margin-left: 8px; font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0; transition: opacity .3s; }
   .config-saved.show { opacity: 1; }
+  .version-tag { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 400; margin-left: -12px; align-self: center; }
   @media (max-width: 600px) { .grid3 { grid-template-columns: 1fr; } header { padding: 0 16px; } }
 </style>
 </head>
 <body>
 <header>
   <h1>🎟 Infotickets</h1>
+  <span class="version-tag" id="version-tag">···</span>
   <div class="nav-tab active" onclick="showPage('panel')" id="tab-panel">Panel</div>
   <div class="nav-tab" onclick="showPage('config')" id="tab-config">⚙️ Configuración</div>
 </header>
@@ -359,7 +361,7 @@ async function selectEntity(entity) {
   document.getElementById('preview-card').style.display = 'none';
   renderEntities([entity]);
   try {
-    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=100`));
+    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=100&offset=100`));
     if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
     const data = await res.json();
     allEvents = data.data || [];
@@ -543,11 +545,23 @@ async function publishToShopify() {
   btn.disabled = false;
   btn.textContent = '🚀 Publicar en Shopify';
 }
+// ── VERSION TAG (automático desde el último commit de GitHub) ─────────────────
+async function loadVersionTag() {
+  try {
+    const res = await fetch('https://api.github.com/repos/ceo450/infotickets-panel/commits/main');
+    const data = await res.json();
+    const date = new Date(data.commit.author.date).toLocaleString('es-ES', {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+    document.getElementById('version-tag').textContent = `${data.sha.slice(0,7)} · ${date}`;
+  } catch(e) {
+    document.getElementById('version-tag').textContent = '';
+  }
+}
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
   renderShopifyStatusBar();
+  loadVersionTag();
 });
 </script>
 </body>
