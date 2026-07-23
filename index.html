@@ -359,7 +359,7 @@ async function selectEntity(entity) {
   document.getElementById('preview-card').style.display = 'none';
   renderEntities([entity]);
   try {
-    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=500`));
+    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=100`));
     if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
     const data = await res.json();
     allEvents = data.data || [];
