@@ -361,10 +361,21 @@ async function selectEntity(entity) {
   document.getElementById('preview-card').style.display = 'none';
   renderEntities([entity]);
   try {
-    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=100`));
-    if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
-    const data = await res.json();
-    allEvents = data.data || [];
+    let events = [];
+    let page = 1;
+    let total = Infinity;
+    while (events.length < total) {
+      const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=100&page=${page}`));
+      if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
+      const data = await res.json();
+      const batch = data.data || [];
+      events = events.concat(batch);
+      total = data.meta?.total ?? events.length;
+      document.getElementById('events-results').innerHTML = `<div class="loading">⏳ Cargando eventos... (${events.length}/${total})</div>`;
+      if (!batch.length) break;
+      page++;
+    }
+    allEvents = events;
     renderEvents();
   } catch(e) {
     document.getElementById('events-results').innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
