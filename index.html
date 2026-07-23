@@ -69,16 +69,20 @@
 </style>
 </head>
 <body>
+
 <header>
   <h1>🎟 Infotickets</h1>
   <div class="nav-tab active" onclick="showPage('panel')" id="tab-panel">Panel</div>
   <div class="nav-tab" onclick="showPage('config')" id="tab-config">⚙️ Configuración</div>
 </header>
+
 <!-- PAGE: PANEL -->
 <div class="page active" id="page-panel">
 <div class="container">
+
   <!-- Shopify status -->
   <div id="shopify-status-bar"></div>
+
   <!-- PASO 1 -->
   <div class="card">
     <p class="card-title">🔍 Paso 1 — Buscar artista o equipo</p>
@@ -89,6 +93,7 @@
     </div>
     <div id="entity-results"></div>
   </div>
+
   <!-- PASO 2 -->
   <div class="card" id="events-card" style="display:none">
     <p class="card-title">📅 Paso 2 — Seleccionar eventos <span id="events-entity-name" style="color:#0071e3;text-transform:none;font-weight:400;letter-spacing:0"></span></p>
@@ -101,6 +106,7 @@
     </div>
     <div id="events-results" class="results-list"></div>
   </div>
+
   <!-- PASO 3 -->
   <div class="card" id="preview-card" style="display:none">
     <p class="card-title">👁 Paso 3 — Preview <span class="sel-count" id="sel-count">0</span></p>
@@ -111,8 +117,10 @@
     </div>
     <div class="log-box" id="log-box"></div>
   </div>
+
 </div>
 </div>
+
 <!-- PAGE: CONFIG -->
 <div class="page" id="page-config">
 <div class="container">
@@ -123,22 +131,24 @@
   <div class="card">
     <p class="card-title">⚙️ Configuración Ticombo <span class="config-saved" id="config-saved">● Guardado</span></p>
     <div class="grid3" style="margin-bottom:16px">
-      <div class="field"><label>API Key Ticombo</label><input type="text" id="ticombo-key" name="it-field-a1" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="lYcEDOk4u..." /></div>
-      <div class="field"><label>Código afiliado (camref)</label><input type="text" id="camref" name="it-field-a2" autocomplete="off" placeholder="1011l4ZQWz" /></div>
-      <div class="field"><label>Nombre de tu web</label><input type="text" id="sitename" name="it-field-a3" autocomplete="off" placeholder="Infotickets.com" /></div>
+      <div class="field"><label>API Key Ticombo</label><input type="password" id="ticombo-key" placeholder="lYcEDOk4u..." /></div>
+      <div class="field"><label>Código afiliado (camref)</label><input type="text" id="camref" placeholder="1011l4ZQWz" /></div>
+      <div class="field"><label>Nombre de tu web</label><input type="text" id="sitename" placeholder="Infotickets.com" /></div>
     </div>
     <div class="grid3">
-      <div class="field"><label>Shopify Store</label><input type="text" id="shop-store" name="it-field-a4" autocomplete="off" placeholder="infoticket.myshopify.com" /></div>
-      <div class="field"><label>Shopify Client ID</label><input type="text" id="shop-client-id" name="it-field-a5" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="ba1eb97c..." /></div>
-      <div class="field"><label>Shopify Secret</label><input type="text" id="shop-secret" name="it-field-a6" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="shpss_..." /></div>
+      <div class="field"><label>Shopify Store</label><input type="text" id="shop-store" placeholder="infoticket.myshopify.com" /></div>
+      <div class="field"><label>Shopify Client ID</label><input type="password" id="shop-client-id" placeholder="ba1eb97c..." /></div>
+      <div class="field"><label>Shopify Secret</label><input type="password" id="shop-secret" placeholder="shpss_..." /></div>
     </div>
     <p style="font-size:12px;color:#6e6e73;margin-top:16px">Los datos se guardan en tu navegador y nunca se envían a ningún servidor externo.</p>
   </div>
 </div>
 </div>
+
 <script>
 const PROXY = 'https://ticombo-proxy.ceo-aed.workers.dev';
-const TICOMBO = 'https://api.ticombo.com/v1';
+const TICOMBO = 'https://external-api.devtic.net/affiliate/v1';
+
 // ── NAVIGATION ────────────────────────────────────────────────────────────────
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -147,6 +157,7 @@ function showPage(name) {
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'config') renderAuthArea();
 }
+
 // ── CONFIG PERSISTENCE ────────────────────────────────────────────────────────
 const FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret'];
 let saveTimer;
@@ -154,103 +165,102 @@ function saveConfig() {
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) localStorage.setItem('it_'+id, el.value); });
   const badge = document.getElementById('config-saved');
   if (badge) { badge.textContent = '● Guardado'; badge.classList.add('show'); clearTimeout(saveTimer); saveTimer = setTimeout(() => badge.classList.remove('show'), 2000); }
-  renderShopifyStatusBar();
 }
 function loadConfig() {
   FIELDS.forEach(id => { const v = localStorage.getItem('it_'+id); const el = document.getElementById(id); if(el && v) el.value = v; });
 }
-// Quita comillas, espacios y saltos de línea sobrantes que a veces se cuelan al copiar/pegar
-// o que el autocompletado del navegador reinserta en campos type=password.
-function cleanField(id) {
-  const el = document.getElementById(id);
-  if (!el) return '';
-  return (el.value || '').trim().replace(/^["'\s]+|["'\s]+$/g, '').trim();
-}
-// ── SHOPIFY AUTH (Client Credentials Grant) ────────────────────────────────────
-let shopifyToken = null;
-let shopifyTokenExpiry = 0;
-function shopifyConfigured() {
-  return !!(cleanField('shop-store') && cleanField('shop-client-id') && cleanField('shop-secret'));
-}
+
+// ── SHOPIFY AUTH ──────────────────────────────────────────────────────────────
+let shopifyToken = localStorage.getItem('shopify_token') || null;
+
 function renderShopifyStatusBar() {
   const bar = document.getElementById('shopify-status-bar');
   if (!bar) return;
-  if (shopifyConfigured()) {
-    const store = cleanField('shop-store');
-    bar.innerHTML = `<div class="shopify-status connected">✅ Shopify configurado (${store})</div>`;
+  if (shopifyToken) {
+    bar.innerHTML = `<div class="shopify-status connected">✅ Shopify conectado correctamente — <a href="#" onclick="disconnectShopify();return false;" style="color:#16a34a;margin-left:8px">Desconectar</a></div>`;
   } else {
-    bar.innerHTML = `<div class="shopify-status disconnected">⚠️ Shopify no configurado — <a href="#" onclick="showPage('config');return false;" style="color:#ff3b30;margin-left:8px">Configurar ahora</a></div>`;
+    bar.innerHTML = `<div class="shopify-status disconnected">⚠️ Shopify no conectado — <a href="#" onclick="showPage('config');return false;" style="color:#ff3b30;margin-left:8px">Conectar ahora</a></div>`;
   }
 }
+
 function renderAuthArea() {
   const area = document.getElementById('shopify-auth-area');
   if (!area) return;
-  area.innerHTML = `<div class="tip">Rellena Store, Client ID y Secret aquí abajo, y pulsa "Probar conexión". No hace falta ningún login adicional — el panel pide un token nuevo automáticamente cada vez que lo necesita.</div>
-  <button class="btn-primary" onclick="testShopifyConnection()">🔌 Probar conexión</button>
-  <div id="shopify-test-result" style="margin-top:10px"></div>`;
+  if (shopifyToken) {
+    area.innerHTML = `<div class="success-box">✅ Shopify conectado correctamente.<br><br><button class="btn-danger btn-sm" onclick="disconnectShopify()">Desconectar Shopify</button></div>`;
+  } else {
+    area.innerHTML = `<div class="tip">Para conectar Shopify haz clic en el botón de abajo. Solo necesitas hacerlo una vez.</div>
+    <button class="btn-primary" onclick="connectShopify()">🔗 Conectar con Shopify</button>`;
+  }
 }
-function extractShopifyError(status, raw) {
-  // Intenta parsear JSON primero
+
+function connectShopify() {
+  const clientId = document.getElementById('shop-client-id').value.trim();
+  const store = document.getElementById('shop-store').value.trim();
+  if (!clientId || !store) { alert('Introduce primero el Shopify Store y el Client ID en la configuración'); return; }
+  const redirectUri = 'https://ceo450.github.io/infotickets-panel/';
+  const authUrl = `https://${store}/admin/oauth/authorize?client_id=${clientId}&scope=write_products,read_products&redirect_uri=${encodeURIComponent(redirectUri)}&state=install`;
+  window.location.href = authUrl;
+}
+
+function disconnectShopify() {
+  shopifyToken = null;
+  localStorage.removeItem('shopify_token');
+  renderAuthArea();
+  renderShopifyStatusBar();
+}
+
+async function handleOAuthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const shop = params.get('shop');
+  if (!code || !shop) return;
+
+  // Limpiar la URL
+  window.history.replaceState({}, document.title, window.location.pathname);
+
+  const clientId = localStorage.getItem('it_shop-client-id') || '';
+  const secret = localStorage.getItem('it_shop-secret') || '';
+
+  if (!clientId || !secret) {
+    alert('Faltan el Client ID o Secret en la configuración. Por favor configúralos primero.');
+    showPage('config');
+    return;
+  }
+
   try {
-    const data = JSON.parse(raw);
-    return data.error_description || data.errors || JSON.stringify(data);
+    const res = await fetch(`${PROXY}/shopify-token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shop, code, client_id: clientId, client_secret: secret })
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      shopifyToken = data.access_token;
+      localStorage.setItem('shopify_token', shopifyToken);
+      renderShopifyStatusBar();
+      renderAuthArea();
+      alert('✅ Shopify conectado correctamente!');
+    } else {
+      throw new Error(JSON.stringify(data));
+    }
   } catch(e) {
-    // No es JSON: es una página HTML de error de Shopify. Sacamos el mensaje útil.
-    const oauthMatch = raw.match(/Oauth error[^<\n]*/i);
-    if (oauthMatch) return oauthMatch[0].trim() + ` (HTTP ${status})`;
-    const titleMatch = raw.match(/<title>([^<]*)<\/title>/i);
-    if (titleMatch) return titleMatch[1].trim() + ` (HTTP ${status})`;
-    return `Respuesta no válida de Shopify (HTTP ${status})`;
+    alert('Error al obtener token de Shopify: ' + e.message);
   }
 }
-async function getShopifyToken() {
-  const now = Date.now();
-  if (shopifyToken && now < shopifyTokenExpiry) return shopifyToken;
-  const store = cleanField('shop-store');
-  const clientId = cleanField('shop-client-id');
-  const secret = cleanField('shop-secret');
-  if (!store || !clientId || !secret) throw new Error('Faltan datos de Shopify en ⚙️ Configuración');
-  const res = await fetch(`${PROXY}/shopify-cc-token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ shop: store, client_id: clientId, client_secret: secret })
-  });
-  const raw = await res.text();
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch(e) {
-    throw new Error(extractShopifyError(res.status, raw));
-  }
-  if (!data.access_token) {
-    throw new Error(data.error_description || data.errors || JSON.stringify(data));
-  }
-  shopifyToken = data.access_token;
-  // Renovamos 60s antes de que caduque de verdad (dura 24h = 86399s)
-  shopifyTokenExpiry = now + (data.expires_in - 60) * 1000;
-  return shopifyToken;
-}
-async function testShopifyConnection() {
-  const resultEl = document.getElementById('shopify-test-result');
-  resultEl.innerHTML = '⏳ Probando conexión...';
-  try {
-    await getShopifyToken();
-    resultEl.innerHTML = '<div class="success-box">✅ Conexión correcta — token obtenido de Shopify.</div>';
-    renderShopifyStatusBar();
-  } catch(e) {
-    resultEl.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
-  }
-}
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let selectedEntity = null;
 let allEvents = [];
 let selectedEvents = [];
+
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 const pad = n => String(n).padStart(2,'0');
 const MONTHS_EN   = ['january','february','march','april','may','june','july','august','september','october','november','december'];
 const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
 function slugify(s) {
-  return (s||'').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'')
+  return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
     .replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-').trim();
 }
 function parseDate(ev) {
@@ -270,24 +280,10 @@ function buildHandle(ev, dt) {
   }
   return `${base}-tickets`;
 }
-// Reconstruye la URL pública real del evento en ticombo.com a partir de los
-// datos que ya tenemos, con el mismo patrón que usa el sitio:
-// /{lang}/{categoria}-tickets/{subcategoria}-tickets/{nombre-slug}-{fechacodigo}/{eventId}
-function buildTicomboEventUrl(ev, dt) {
-  const category = (ev.category || 'other').toLowerCase();
-  const subcategory = (ev.subcategory || ev.category || 'other').toLowerCase();
-  const nameSlug = slugify(ev.name || '');
-  const dateCode = `${pad((dt.getFullYear())%100)}${pad(dt.getMonth()+1)}${pad(dt.getDate())}${pad(dt.getHours())}${pad(dt.getMinutes())}`;
-  const pid = ev.eventId || '';
-  return `https://www.ticombo.com/en/${category}-tickets/${subcategory}-tickets/${nameSlug}-${dateCode}/${pid}`;
-}
 function buildAffUrl(ev, sku) {
-  // Formato Partnerize (el que realmente usa Miquel para cobrar comisiones).
-  // Pendiente de confirmar con Ticombo/Partnerize: de dónde sale el p_id correcto.
-  const camref = cleanField('camref');
+  const camref = document.getElementById('camref').value.trim();
   const pid = ev.eventId || '';
-  const dt = parseDate(ev);
-  const dest = buildTicomboEventUrl(ev, dt);
+  const dest = ev.shortUrl || `https://www.ticombo.com/en/event/${pid}`;
   return `https://ticombo.prf.hn/click/camref:${camref}/pubref:Web/ar:${sku}/[p_id:${pid}]/destination:${encodeURIComponent(dest)}`;
 }
 function countryName(code) {
@@ -302,7 +298,7 @@ function catBadge(cat) {
   return cat ? `<span class="badge ${cls}">${cat}</span>` : '';
 }
 function apiUrl(endpoint) {
-  const key = cleanField('ticombo-key');
+  const key = document.getElementById('ticombo-key').value.trim();
   return `${PROXY}/?url=${encodeURIComponent(`${TICOMBO}${endpoint}`)}&apikey=${encodeURIComponent(key)}`;
 }
 function log(msg, type='info') {
@@ -312,11 +308,12 @@ function log(msg, type='info') {
   box.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
   box.scrollTop = box.scrollHeight;
 }
+
 // ── STEP 1: ENTITIES ──────────────────────────────────────────────────────────
 async function searchEntities() {
   const q = document.getElementById('entity-input').value.trim();
   if (!q) return;
-  const key = cleanField('ticombo-key');
+  const key = document.getElementById('ticombo-key').value.trim();
   if (!key) { alert('Añade primero el API Key de Ticombo en ⚙️ Configuración'); showPage('config'); return; }
   const el = document.getElementById('entity-results');
   el.innerHTML = '<div class="loading">⏳ Buscando...</div>';
@@ -332,6 +329,7 @@ async function searchEntities() {
     document.getElementById('entity-btn').disabled = false;
   }
 }
+
 function renderEntities(entities) {
   const el = document.getElementById('entity-results');
   if (!entities.length) { el.innerHTML = '<div class="loading">No se encontraron resultados.</div>'; return; }
@@ -348,6 +346,7 @@ function renderEntities(entities) {
     </div>`;
   }).join('')}</div>`;
 }
+
 async function selectEntity(entity) {
   selectedEntity = entity;
   selectedEvents = [];
@@ -359,7 +358,7 @@ async function selectEntity(entity) {
   document.getElementById('preview-card').style.display = 'none';
   renderEntities([entity]);
   try {
-    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=100`));
+    const res = await fetch(apiUrl(`/events?entityId=${entity.entityId}&limit=500`));
     if (!res.ok) throw new Error(`Error ${res.status}: ${await res.text()}`);
     const data = await res.json();
     allEvents = data.data || [];
@@ -368,6 +367,7 @@ async function selectEntity(entity) {
     document.getElementById('events-results').innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
   }
 }
+
 // ── STEP 2: EVENTS ────────────────────────────────────────────────────────────
 function renderEvents() {
   const el = document.getElementById('events-results');
@@ -386,6 +386,7 @@ function renderEvents() {
     </div>`;
   }).join('');
 }
+
 function toggleEvent(eventId) {
   const ev = allEvents.find(e => e.eventId === eventId);
   if (!ev) return;
@@ -395,8 +396,10 @@ function toggleEvent(eventId) {
   renderEvents();
   updatePreview();
 }
+
 function selectAllEvents() { selectedEvents = [...allEvents]; renderEvents(); updatePreview(); }
 function deselectAllEvents() { selectedEvents = []; renderEvents(); updatePreview(); }
+
 // ── STEP 3: PREVIEW ───────────────────────────────────────────────────────────
 function updatePreview() {
   const card = document.getElementById('preview-card');
@@ -440,6 +443,7 @@ function updatePreview() {
     </div>`;
   }).join('');
 }
+
 // ── SHOPIFY PUBLISH ───────────────────────────────────────────────────────────
 function buildShopifyProduct(ev) {
   const dt = parseDate(ev);
@@ -480,59 +484,29 @@ function buildShopifyProduct(ev) {
     }
   };
 }
-// Busca si ya existe un producto en Shopify con ese handle (evita duplicados)
-async function findExistingProduct(store, token, handle) {
-  const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json?handle=${encodeURIComponent(handle)}&limit=1`)}&shopify_token=${encodeURIComponent(token)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(await res.text());
-  const data = await res.json();
-  return (data.products && data.products[0]) || null;
-}
+
 async function publishToShopify() {
   if (!selectedEvents.length) return;
-  if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
-  const store = cleanField('shop-store');
+  if (!shopifyToken) { alert('Shopify no está conectado. Ve a ⚙️ Configuración para conectarlo.'); showPage('config'); return; }
+  const store = document.getElementById('shop-store').value.trim();
   const btn = document.getElementById('publish-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Publicando...';
   document.getElementById('log-box').innerHTML = '';
-  let token;
-  try {
-    log('Obteniendo token de Shopify...');
-    token = await getShopifyToken();
-    log('✓ Token obtenido', 'success');
-  } catch(e) {
-    log(`✗ No se pudo obtener token de Shopify: ${e.message}`, 'error');
-    btn.disabled = false;
-    btn.textContent = '🚀 Publicar en Shopify';
-    return;
-  }
+
   let ok = 0, fail = 0;
   for (const ev of selectedEvents) {
     try {
+      log(`Publicando: ${ev.name}...`);
       const product = buildShopifyProduct(ev);
-      const handle = product.product.handle;
-      log(`Comprobando si "${ev.name}" ya existe...`);
-      const existing = await findExistingProduct(store, token, handle);
-      let url, method;
-      if (existing) {
-        if (existing.variants && existing.variants[0]) {
-          product.product.variants[0].id = existing.variants[0].id;
-        }
-        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products/${existing.id}.json`)}&shopify_token=${encodeURIComponent(token)}`;
-        method = 'PUT';
-        log(`  → ya existe (ID ${existing.id}), actualizando en vez de duplicar...`);
-      } else {
-        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
-        method = 'POST';
-      }
+      const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(shopifyToken)}`;
       const res = await fetch(url, {
-        method,
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(product)
       });
       if (!res.ok) throw new Error(await res.text());
-      log(existing ? `✓ Actualizado: ${ev.name}` : `✓ Publicado: ${ev.name}`, 'success');
+      log(`✓ Publicado: ${ev.name}`, 'success');
       ok++;
     } catch(e) {
       log(`✗ Error en ${ev.name}: ${e.message}`, 'error');
@@ -543,10 +517,12 @@ async function publishToShopify() {
   btn.disabled = false;
   btn.textContent = '🚀 Publicar en Shopify';
 }
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
+  handleOAuthCallback();
   renderShopifyStatusBar();
 });
 </script>
