@@ -307,6 +307,8 @@ function buildHandle(ev, dt) {
 // que da la propia API de Ticombo (safeUrlName) en vez de inventarlo a mano —
 // así la URL siempre coincide con la ruta real del sitio. Si por lo que sea
 // no viene en la respuesta, cae al slug reconstruido como backup.
+// [Fix v2 — 24 jul 2026: confirmado con eventos reales que safeUrlName es la
+// fuente correcta; el fallback solo debería activarse si el campo falta.]
 function buildTicomboEventUrl(ev, dt) {
   const category = (ev.category || 'other').toLowerCase();
   const subcategory = (ev.subcategory || ev.category || 'other').toLowerCase();
