@@ -303,16 +303,21 @@ function buildHandle(ev, dt) {
   }
   return `${base}-tickets`;
 }
-// Reconstruye la URL pública real del evento en ticombo.com a partir de los
-// datos que ya tenemos, con el mismo patrón que usa el sitio:
-// /{lang}/{categoria}-tickets/{subcategoria}-tickets/{nombre-slug}-{fechacodigo}/{eventId}
+// Reconstruye la URL pública real del evento en ticombo.com. Usa el slug real
+// que da la propia API de Ticombo (safeUrlName) en vez de inventarlo a mano —
+// así la URL siempre coincide con la ruta real del sitio. Si por lo que sea
+// no viene en la respuesta, cae al slug reconstruido como backup.
 function buildTicomboEventUrl(ev, dt) {
   const category = (ev.category || 'other').toLowerCase();
   const subcategory = (ev.subcategory || ev.category || 'other').toLowerCase();
-  const nameSlug = slugify(ev.name || '');
-  const dateCode = `${pad((dt.getFullYear())%100)}${pad(dt.getMonth()+1)}${pad(dt.getDate())}${pad(dt.getHours())}${pad(dt.getMinutes())}`;
   const pid = ev.eventId || '';
-  return `https://www.ticombo.com/en/${category}-tickets/${subcategory}-tickets/${nameSlug}-${dateCode}/${pid}`;
+  let slug = ev.safeUrlName;
+  if (!slug) {
+    const nameSlug = slugify(ev.name || '');
+    const dateCode = `${pad((dt.getFullYear())%100)}${pad(dt.getMonth()+1)}${pad(dt.getDate())}${pad(dt.getHours())}${pad(dt.getMinutes())}`;
+    slug = `${nameSlug}-${dateCode}`;
+  }
+  return `https://www.ticombo.com/en/${category}-tickets/${subcategory}-tickets/${slug}/${pid}`;
 }
 function buildAffUrl(ev, sku) {
   // Formato Partnerize (el que realmente usa Miquel para cobrar comisiones).
