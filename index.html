@@ -526,8 +526,9 @@ function buildShopifyProduct(ev) {
         { namespace: 'custom', key: 'country', value: country, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'additional_information', value: 'Some links on this page may lead to affiliate sites, which means Infotickets could earn a commission if you make a purchase, at no extra cost to you.', type: 'multi_line_text_field' },
         { namespace: 'custom', key: 'viagogo_url', value: affUrl, type: 'url' },
-      ],
-      seo: { title: seoTitle, description: seoDesc }
+        { namespace: 'global', key: 'title_tag', value: seoTitle, type: 'single_line_text_field' },
+        { namespace: 'global', key: 'description_tag', value: seoDesc, type: 'single_line_text_field' },
+      ]
     }
   };
 }
