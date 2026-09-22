@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Infotickets Panel — Ticombo → Shopify</title>
+<title>Infotickets Panel — Ticombo & Browse AI → Shopify</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
@@ -20,8 +20,8 @@
   .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 12px; color: #6e6e73; }
-  .field input { border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; width: 100%; }
-  .field input:focus { border-color: #0071e3; }
+  .field input, .field select { border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 12px; font-size: 14px; outline: none; width: 100%; }
+  .field input:focus, .field select:focus { border-color: #0071e3; }
   .search-row { display: flex; gap: 10px; margin-bottom: 12px; }
   .search-row input { flex: 1; border: 1px solid #d2d2d7; border-radius: 8px; padding: 10px 14px; font-size: 15px; outline: none; }
   .search-row input:focus { border-color: #0071e3; }
@@ -77,12 +77,11 @@
   <div class="nav-tab" onclick="showPage('config')" id="tab-config">⚙️ Configuración</div>
   <div class="nav-tab" onclick="showPage('browse-ai')" id="tab-browse-ai">🤖 Browse AI</div>
 </header>
-<!-- PAGE: PANEL -->
+
+<!-- PAGE: PANEL (Ticombo) -->
 <div class="page active" id="page-panel">
 <div class="container">
-  <!-- Shopify status -->
   <div id="shopify-status-bar"></div>
-  <!-- PASO 1 -->
   <div class="card">
     <p class="card-title">🔍 Paso 1 — Buscar artista o equipo</p>
     <div class="tip">Busca el artista o equipo para obtener todos sus eventos disponibles en Ticombo</div>
@@ -92,7 +91,6 @@
     </div>
     <div id="entity-results"></div>
   </div>
-  <!-- PASO 2 -->
   <div class="card" id="events-card" style="display:none">
     <p class="card-title">📅 Paso 2 — Seleccionar eventos <span id="events-entity-name" style="color:#0071e3;text-transform:none;font-weight:400;letter-spacing:0"></span></p>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
@@ -104,7 +102,6 @@
     </div>
     <div id="events-results" class="results-list"></div>
   </div>
-  <!-- PASO 3 -->
   <div class="card" id="preview-card" style="display:none">
     <p class="card-title">👁 Paso 3 — Preview <span class="sel-count" id="sel-count">0</span></p>
     <div id="preview-area"></div>
@@ -116,6 +113,7 @@
   </div>
 </div>
 </div>
+
 <!-- PAGE: CONFIG -->
 <div class="page" id="page-config">
 <div class="container">
@@ -137,12 +135,81 @@
     </div>
     <p style="font-size:12px;color:#6e6e73;margin-top:16px">Los datos se guardan en tu navegador y nunca se envían a ningún servidor externo.</p>
   </div>
+  <div class="card" style="background:#f9f9fb;border-color:#e5e5e7">
+    <p class="card-title">⚙️ Configuración Browse AI <span class="config-saved" id="ba-config-saved">● Guardado</span></p>
+    <div style="font-size:12px;color:#6e6e73;margin-bottom:12px">
+      <p style="margin-bottom:8px">Configura tu robot Browse AI para scrapear Viagogo. <strong>El robot se crea una sola vez</strong> y se reutiliza para todos los eventos.</p>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>API Key Browse AI</label><input type="password" id="ba-api-key" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="key:secret" /></div>
+      <div class="field"><label>Robot ID</label><input type="text" id="ba-robot-id" autocomplete="off" data-1p-ignore placeholder="robot_abc123..." /></div>
+      <div class="field"><label>&nbsp;</label><button class="btn-secondary" onclick="baTestConnection()">🔌 Probar conexión</button></div>
+    </div>
+    <div id="ba-test-result" style="margin-top:10px;font-size:12px"></div>
+    <p style="font-size:11px;color:#999;margin-top:12px">ℹ️ Los datos se guardan en tu navegador. Para crear el robot, usa el <a href="https://www.browse.ai/" target="_blank" style="color:#0071e3">dashboard de Browse AI</a>.</p>
+  </div>
 </div>
 </div>
+
+<!-- PAGE: BROWSE AI -->
+<div class="page" id="page-browse-ai">
+<div class="container">
+  <div class="card">
+    <p class="card-title">🔍 Paso 1 — Buscar evento en Viagogo</p>
+    <div class="tip">Busca un artista, equipo o evento. Browse AI scrapea Viagogo y extrae los tickets disponibles.</div>
+    <div class="grid3" style="margin-bottom:16px">
+      <div class="field">
+        <label>Artista / Equipo</label>
+        <input type="text" id="ba-search-query" placeholder="Ej: BIGBANG, Boca Juniors..." />
+      </div>
+      <div class="field">
+        <label>Tipo de evento</label>
+        <select id="ba-event-type">
+          <option value="concert">Concierto</option>
+          <option value="football">Fútbol</option>
+          <option value="basketball">Baloncesto</option>
+          <option value="other">Otro</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>&nbsp;</label>
+        <button class="btn-primary" onclick="baSearchEvents()" id="ba-search-btn">Buscar en Viagogo</button>
+      </div>
+    </div>
+    <div id="ba-search-status" style="font-size:13px;color:#6e6e73;margin-bottom:12px;display:none">⏳ Buscando en Viagogo...</div>
+    <div id="ba-entity-results"></div>
+  </div>
+  <div class="card" id="ba-events-card" style="display:none">
+    <p class="card-title">📅 Paso 2 — Seleccionar tickets <span id="ba-events-entity-name" style="color:#0071e3;text-transform:none;font-weight:400;letter-spacing:0"></span></p>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <span id="ba-events-count" style="font-size:13px;color:#6e6e73"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-secondary btn-sm" onclick="baSelectAllEvents()">Seleccionar todos</button>
+        <button class="btn-secondary btn-sm" onclick="baDeselectAllEvents()">Deseleccionar todos</button>
+      </div>
+    </div>
+    <div id="ba-events-results" class="results-list"></div>
+  </div>
+  <div class="card" id="ba-preview-card" style="display:none">
+    <p class="card-title">👁 Paso 3 — Preview <span class="sel-count" id="ba-sel-count">0</span></p>
+    <div id="ba-preview-area"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-success" onclick="baPublishToShopify()" id="ba-publish-btn">🚀 Publicar en Shopify</button>
+      <button class="btn-secondary" onclick="baDeselectAllEvents()">Limpiar selección</button>
+    </div>
+    <div class="log-box" id="ba-log-box"></div>
+  </div>
+</div>
+</div>
+
 <script>
 const PROXY = 'https://ticombo-proxy.ceo-aed.workers.dev';
 const TICOMBO = 'https://api.ticombo.com/v1';
-// ── NAVIGATION ────────────────────────────────────────────────────────────────
+
+// ════════════════════════════════════════════════════════════════════════════════
+// TICOMBO CODE (Original)
+// ════════════════════════════════════════════════════════════════════════════════
+
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
@@ -150,7 +217,7 @@ function showPage(name) {
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'config') renderAuthArea();
 }
-// ── CONFIG PERSISTENCE ────────────────────────────────────────────────────────
+
 const FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret'];
 let saveTimer;
 function saveConfig() {
@@ -162,14 +229,13 @@ function saveConfig() {
 function loadConfig() {
   FIELDS.forEach(id => { const v = localStorage.getItem('it_'+id); const el = document.getElementById(id); if(el && v) el.value = v; });
 }
-// Quita comillas, espacios y saltos de línea sobrantes que a veces se cuelan al copiar/pegar
-// o que el autocompletado del navegador reinserta en campos type=password.
+
 function cleanField(id) {
   const el = document.getElementById(id);
   if (!el) return '';
-  return (el.value || '').trim().replace(/^["'\s]+|["'\s]+$/g, '').trim();
+  return (el.value || '').trim().replace(/^[\"'\\s]+|[\"'\\s]+$/g, '').trim();
 }
-// ── SHOPIFY AUTH (Client Credentials Grant) ────────────────────────────────────
+
 let shopifyToken = null;
 let shopifyTokenExpiry = 0;
 function shopifyConfigured() {
@@ -193,12 +259,10 @@ function renderAuthArea() {
   <div id="shopify-test-result" style="margin-top:10px"></div>`;
 }
 function extractShopifyError(status, raw) {
-  // Intenta parsear JSON primero
   try {
     const data = JSON.parse(raw);
     return data.error_description || data.errors || JSON.stringify(data);
   } catch(e) {
-    // No es JSON: es una página HTML de error de Shopify. Sacamos el mensaje útil.
     const oauthMatch = raw.match(/Oauth error[^<\n]*/i);
     if (oauthMatch) return oauthMatch[0].trim() + ` (HTTP ${status})`;
     const titleMatch = raw.match(/<title>([^<]*)<\/title>/i);
@@ -229,7 +293,6 @@ async function getShopifyToken() {
     throw new Error(data.error_description || data.errors || JSON.stringify(data));
   }
   shopifyToken = data.access_token;
-  // Renovamos 60s antes de que caduque de verdad (dura 24h = 86399s)
   shopifyTokenExpiry = now + (data.expires_in - 60) * 1000;
   return shopifyToken;
 }
@@ -244,10 +307,7 @@ async function testShopifyConnection() {
     resultEl.innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
   }
 }
-// ── SHOPIFY RATE LIMITING ──────────────────────────────────────────────────────
-// El plan básico de Shopify limita la API REST a 2 llamadas/segundo.
-// Esta cola global espacia cada llamada al menos 550ms y reintenta con espera
-// cuando llega el error de límite o un fallo de red puntual.
+
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 let lastShopifyCallAt = 0;
 async function shopifyThrottle() {
@@ -275,11 +335,11 @@ async function shopifyFetch(url, options, maxRetries = 6) {
   }
   throw lastErr;
 }
-// ── STATE ─────────────────────────────────────────────────────────────────────
+
 let selectedEntity = null;
 let allEvents = [];
 let selectedEvents = [];
-// ── HELPERS ───────────────────────────────────────────────────────────────────
+
 const pad = n => String(n).padStart(2,'0');
 const MONTHS_EN   = ['january','february','march','april','may','june','july','august','september','october','november','december'];
 const MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -304,12 +364,6 @@ function buildHandle(ev, dt) {
   }
   return `${base}-tickets`;
 }
-// Reconstruye la URL pública real del evento en ticombo.com. Usa el slug real
-// que da la propia API de Ticombo (safeUrlName) en vez de inventarlo a mano —
-// así la URL siempre coincide con la ruta real del sitio. Si por lo que sea
-// no viene en la respuesta, cae al slug reconstruido como backup.
-// [Fix v2 — 24 jul 2026: confirmado con eventos reales que safeUrlName es la
-// fuente correcta; el fallback solo debería activarse si el campo falta.]
 function buildTicomboEventUrl(ev, dt) {
   const category = (ev.category || 'other').toLowerCase();
   const subcategory = (ev.subcategory || ev.category || 'other').toLowerCase();
@@ -323,8 +377,6 @@ function buildTicomboEventUrl(ev, dt) {
   return `https://www.ticombo.com/en/${category}-tickets/${subcategory}-tickets/${slug}/${pid}`;
 }
 function buildAffUrl(ev, sku) {
-  // Formato Partnerize (el que realmente usa Miquel para cobrar comisiones).
-  // Pendiente de confirmar con Ticombo/Partnerize: de dónde sale el p_id correcto.
   const camref = cleanField('camref');
   const pid = ev.eventId || '';
   const dt = parseDate(ev);
@@ -353,7 +405,7 @@ function log(msg, type='info') {
   box.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] ${msg}</div>`;
   box.scrollTop = box.scrollHeight;
 }
-// ── STEP 1: ENTITIES ──────────────────────────────────────────────────────────
+
 async function searchEntities() {
   const q = document.getElementById('entity-input').value.trim();
   if (!q) return;
@@ -380,13 +432,7 @@ function renderEntities(entities) {
   <div>${entities.map(en => {
     const cat = en.category || en.type || '';
     const isSel = selectedEntity?.entityId === en.entityId;
-    return `<div class="entity-item${isSel?' selected':''}" onclick='selectEntity(${JSON.stringify(en).replace(/'/g,"&#39;")})'>
-      <div>
-        <div class="event-name">${en.name} ${catBadge(cat)}</div>
-        <div class="event-meta">${en.subcategory || cat || ''}</div>
-      </div>
-      <span style="font-size:20px;color:${isSel?'#0071e3':'#c7c7cc'}">${isSel?'●':'○'}</span>
-    </div>`;
+    return `<div class="entity-item${isSel?' selected':''}\" onclick='selectEntity(${JSON.stringify(en).replace(/'/g,"&#39;")})'>\n      <div>\n        <div class="event-name">${en.name} ${catBadge(cat)}</div>\n        <div class="event-meta">${en.subcategory || cat || ''}</div>\n      </div>\n      <span style="font-size:20px;color:${isSel?'#0071e3':'#c7c7cc'}">${isSel?'●':'○'}</span>\n    </div>`;
   }).join('')}</div>`;
 }
 async function selectEntity(entity) {
@@ -420,7 +466,7 @@ async function selectEntity(entity) {
     document.getElementById('events-results').innerHTML = `<div class="error-box">❌ ${e.message}</div>`;
   }
 }
-// ── STEP 2: EVENTS ────────────────────────────────────────────────────────────
+
 function renderEvents() {
   const el = document.getElementById('events-results');
   document.getElementById('events-count').textContent = `${allEvents.length} evento(s) encontrado(s)`;
@@ -429,13 +475,7 @@ function renderEvents() {
     const isSel = selectedEvents.find(s => s.eventId === ev.eventId);
     const dt = parseDate(ev);
     const dateStr = dt.toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-    return `<div class="event-item${isSel?' selected':''}" onclick='toggleEvent("${ev.eventId}")'>
-      <div>
-        <div class="event-name">${ev.name} ${flagEmoji(ev.venue?.location?.country||'')} ${catBadge(ev.category)}</div>
-        <div class="event-meta">${dateStr} · ${ev.venue?.name||''} · ${ev.venue?.location?.city||''}, ${ev.venue?.location?.country||''}</div>
-      </div>
-      <span class="${isSel?'check-icon':'plus-icon'}">${isSel?'✓':'+'}</span>
-    </div>`;
+    return `<div class="event-item${isSel?' selected':''}\" onclick='toggleEvent(\"${ev.eventId}\")'>\n      <div>\n        <div class="event-name">${ev.name} ${flagEmoji(ev.venue?.location?.country||'')} ${catBadge(ev.category)}</div>\n        <div class="event-meta">${dateStr} · ${ev.venue?.name||''} · ${ev.venue?.location?.city||''}, ${ev.venue?.location?.country||''}</div>\n      </div>\n      <span class="${isSel?'check-icon':'plus-icon'}">${isSel?'✓':'+'}</span>\n    </div>`;
   }).join('');
 }
 function toggleEvent(eventId) {
@@ -449,7 +489,7 @@ function toggleEvent(eventId) {
 }
 function selectAllEvents() { selectedEvents = [...allEvents]; renderEvents(); updatePreview(); }
 function deselectAllEvents() { selectedEvents = []; renderEvents(); updatePreview(); }
-// ── STEP 3: PREVIEW ───────────────────────────────────────────────────────────
+
 function updatePreview() {
   const card = document.getElementById('preview-card');
   document.getElementById('sel-count').textContent = selectedEvents.length;
@@ -483,16 +523,10 @@ function updatePreview() {
       ['competicion', competition], ['tipo', 'Tickets'],
       ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${affUrl}</span>`],
     ];
-    return `<div style="margin-bottom:20px">
-      <div style="font-weight:600;font-size:14px;padding:10px 12px;background:#f5f5f7;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
-        <span>${i+1}. ${title} ${catBadge(ev.category)}</span>
-        <button class="btn-danger btn-sm" onclick="toggleEvent('${ev.eventId}')">Quitar</button>
-      </div>
-      <div class="preview-scroll"><table class="preview-table">${rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table></div>
-    </div>`;
+    return `<div style="margin-bottom:20px">\n      <div style="font-weight:600;font-size:14px;padding:10px 12px;background:#f5f5f7;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0\">\n        <span>${i+1}. ${title} ${catBadge(ev.category)}</span>\n        <button class="btn-danger btn-sm" onclick="toggleEvent('${ev.eventId}')">Quitar</button>\n      </div>\n      <div class="preview-scroll"><table class="preview-table">${rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table></div>\n    </div>`;
   }).join('');
 }
-// ── SHOPIFY PUBLISH ───────────────────────────────────────────────────────────
+
 function buildShopifyProduct(ev) {
   const dt = parseDate(ev);
   const title = ev.name || '';
@@ -533,7 +567,7 @@ function buildShopifyProduct(ev) {
     }
   };
 }
-// Busca si ya existe un producto en Shopify con ese handle (evita duplicados)
+
 async function findExistingProduct(store, token, handle) {
   const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json?handle=${encodeURIComponent(handle)}&limit=1`)}&shopify_token=${encodeURIComponent(token)}`;
   const res = await shopifyFetch(url);
@@ -541,6 +575,7 @@ async function findExistingProduct(store, token, handle) {
   const data = await res.json();
   return (data.products && data.products[0]) || null;
 }
+
 async function publishToShopify() {
   if (!selectedEvents.length) return;
   if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
@@ -597,7 +632,357 @@ async function publishToShopify() {
   btn.disabled = false;
   btn.textContent = '🚀 Publicar en Shopify';
 }
-// ── VERSION TAG (automático desde el último commit de GitHub) ─────────────────
+
+// ════════════════════════════════════════════════════════════════════════════════
+// BROWSE AI CODE
+// ════════════════════════════════════════════════════════════════════════════════
+
+const BA_FIELDS = ['ba-api-key', 'ba-robot-id'];
+
+function baCleanField(id) {
+  const el = document.getElementById(id);
+  if (!el) return '';
+  return (el.value || '').trim().replace(/^[\"'\\s]+|[\"'\\s]+$/g, '').trim();
+}
+
+function baSaveConfig() {
+  BA_FIELDS.forEach(id => { 
+    const el = document.getElementById(id); 
+    if(el) localStorage.setItem('ba_'+id, el.value); 
+  });
+  const badge = document.getElementById('ba-config-saved');
+  if (badge) { 
+    badge.textContent = '● Guardado'; 
+    badge.classList.add('show'); 
+    setTimeout(() => badge.classList.remove('show'), 2000); 
+  }
+}
+
+function baLoadConfig() {
+  BA_FIELDS.forEach(id => { 
+    const v = localStorage.getItem('ba_'+id); 
+    const el = document.getElementById(id); 
+    if(el && v) el.value = v; 
+  });
+}
+
+function baTestConnection() {
+  const apiKey = baCleanField('ba-api-key');
+  const robotId = baCleanField('ba-robot-id');
+  const resultDiv = document.getElementById('ba-test-result');
+  
+  if (!apiKey || !robotId) {
+    resultDiv.innerHTML = '<div class="error-box">❌ API Key y Robot ID requeridos</div>';
+    return;
+  }
+  
+  resultDiv.innerHTML = '<div style="color:#6e6e73">⏳ Verificando...</div>';
+  
+  fetch('https://api.browse.ai/v2/robots/' + robotId, {
+    method: 'GET',
+    headers: {
+      'Authorization': 'Bearer ' + apiKey,
+      'Content-Type': 'application/json'
+    }
+  })
+  .then(r => r.json())
+  .then(data => {
+    baSaveConfig();
+    if (data.robot || data.id) {
+      resultDiv.innerHTML = '<div class="success-box">✅ Conexión exitosa. Robot listo para usar.</div>';
+    } else {
+      resultDiv.innerHTML = '<div class="error-box">❌ Robot no encontrado. Verifica el Robot ID.</div>';
+    }
+  })
+  .catch(err => {
+    resultDiv.innerHTML = '<div class="error-box">❌ Error de conexión: ' + err.message + '</div>';
+  });
+}
+
+let baCurrentEvents = [];
+
+function baSearchEvents() {
+  const query = baCleanField('ba-search-query').trim();
+  const apiKey = baCleanField('ba-api-key');
+  const robotId = baCleanField('ba-robot-id');
+  const eventType = document.getElementById('ba-event-type').value;
+  
+  if (!query) {
+    alert('Escribe un artista, equipo o evento');
+    return;
+  }
+  
+  if (!apiKey || !robotId) {
+    alert('Configura tu API Key y Robot ID primero');
+    return;
+  }
+  
+  let viagogoUrl = 'https://www.viagogo.es/';
+  if (eventType === 'concert') {
+    viagogoUrl += 'Entradas-Conciertos';
+  } else if (eventType === 'football') {
+    viagogoUrl += 'Entradas-Futbol';
+  } else if (eventType === 'basketball') {
+    viagogoUrl += 'Entradas-Baloncesto';
+  } else {
+    viagogoUrl += 'Entradas';
+  }
+  viagogoUrl += '?q=' + encodeURIComponent(query);
+  
+  document.getElementById('ba-search-status').style.display = 'block';
+  document.getElementById('ba-entity-results').innerHTML = '';
+  
+  fetch('https://api.browse.ai/v2/robots/' + robotId + '/tasks', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + apiKey,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ url: viagogoUrl })
+  })
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('ba-search-status').style.display = 'none';
+    
+    if (data.task || data.id) {
+      const taskId = data.task?.id || data.id;
+      baWaitForTaskCompletion(robotId, taskId, apiKey, query, eventType);
+    } else {
+      document.getElementById('ba-entity-results').innerHTML = 
+        '<div class="error-box">❌ Error: ' + (data.message || 'No se pudo iniciar la tarea') + '</div>';
+    }
+  })
+  .catch(err => {
+    document.getElementById('ba-search-status').style.display = 'none';
+    document.getElementById('ba-entity-results').innerHTML = 
+      '<div class="error-box">❌ Error de conexión: ' + err.message + '</div>';
+  });
+}
+
+function baWaitForTaskCompletion(robotId, taskId, apiKey, query, eventType, attempts = 0) {
+  if (attempts > 60) {
+    document.getElementById('ba-entity-results').innerHTML = 
+      '<div class="error-box">❌ Timeout: Browse AI tardó demasiado. Intenta de nuevo.</div>';
+    return;
+  }
+  
+  setTimeout(() => {
+    fetch('https://api.browse.ai/v2/robots/' + robotId + '/tasks/' + taskId, {
+      headers: {
+        'Authorization': 'Bearer ' + apiKey,
+        'Content-Type': 'application/json'
+      }
+    })
+    .then(r => r.json())
+    .then(data => {
+      const task = data.task || data;
+      
+      if (task.status === 'SUCCESSFUL' || task.status === 'COMPLETED') {
+        baProcessSearchResults(task.data || task.extractedData || [], query, eventType);
+      } else if (task.status === 'FAILED') {
+        document.getElementById('ba-entity-results').innerHTML = 
+          '<div class="error-box">❌ Error en Browse AI: ' + (task.errorMessage || 'Sin detalles') + '</div>';
+      } else {
+        document.getElementById('ba-search-status').textContent = '⏳ Scrapéando Viagogo... (' + attempts + 's)';
+        baWaitForTaskCompletion(robotId, taskId, apiKey, query, eventType, attempts + 1);
+      }
+    })
+    .catch(err => {
+      document.getElementById('ba-entity-results').innerHTML = 
+        '<div class="error-box">❌ Error: ' + err.message + '</div>';
+    });
+  }, 1000);
+}
+
+function baProcessSearchResults(rawData, query, eventType) {
+  baCurrentEvents = [];
+  
+  if (Array.isArray(rawData)) {
+    rawData.forEach(item => {
+      baCurrentEvents.push({
+        id: Math.random().toString(36).substr(2, 9),
+        title: item.title || query,
+        date: item.date || '',
+        location: item.location || '',
+        price: item.price_min || item.price || '',
+        stock: item.availability || item.stock || 'Disponible',
+        viagogo_url: item.viagogo_url || item.url || '',
+        event_type: eventType,
+        selected: false
+      });
+    });
+  } else if (typeof rawData === 'object' && rawData.title) {
+    baCurrentEvents.push({
+      id: Math.random().toString(36).substr(2, 9),
+      title: rawData.title || query,
+      date: rawData.date || '',
+      location: rawData.location || '',
+      price: rawData.price_min || rawData.price || '',
+      stock: rawData.availability || rawData.stock || 'Disponible',
+      viagogo_url: rawData.viagogo_url || rawData.url || '',
+      event_type: eventType,
+      selected: false
+    });
+  }
+  
+  if (baCurrentEvents.length === 0) {
+    document.getElementById('ba-entity-results').innerHTML = 
+      '<div class="error-box">❌ No se encontraron eventos para "' + query + '"</div>';
+    return;
+  }
+  
+  document.getElementById('ba-entity-results').innerHTML = '<div class="success-box">✅ ' + baCurrentEvents.length + ' evento(s) encontrado(s)</div>';
+  baShowEventsList(query);
+}
+
+function baShowEventsList(query) {
+  document.getElementById('ba-events-entity-name').textContent = query;
+  document.getElementById('ba-events-card').style.display = 'block';
+  baUpdateEventsList();
+}
+
+function baUpdateEventsList() {
+  const html = baCurrentEvents.map(evt => `
+    <div class="event-item ${evt.selected ? 'selected' : ''}" onclick="baToggleEvent('${evt.id}')">
+      <div style="flex:1">
+        <div class="event-name">
+          ${evt.selected ? '✅' : '◯'} ${evt.title}
+          <span class="badge badge-${evt.event_type === 'football' ? 'sports' : (evt.event_type === 'concert' ? 'music' : 'other')}">
+            ${evt.date || 'Fecha TBD'}
+          </span>
+        </div>
+        <div class="event-meta">
+          ${evt.location} • Desde €${evt.price || '?'} • ${evt.stock}
+        </div>
+      </div>
+    </div>
+  `).join('');
+  
+  document.getElementById('ba-events-results').innerHTML = html;
+  
+  const count = baCurrentEvents.filter(e => e.selected).length;
+  document.getElementById('ba-events-count').textContent = count + ' de ' + baCurrentEvents.length + ' seleccionado(s)';
+  document.getElementById('ba-sel-count').textContent = count;
+  
+  if (count > 0) {
+    document.getElementById('ba-preview-card').style.display = 'block';
+    baUpdatePreview();
+  }
+}
+
+function baToggleEvent(id) {
+  const evt = baCurrentEvents.find(e => e.id === id);
+  if (evt) evt.selected = !evt.selected;
+  baUpdateEventsList();
+}
+
+function baSelectAllEvents() {
+  baCurrentEvents.forEach(e => e.selected = true);
+  baUpdateEventsList();
+}
+
+function baDeselectAllEvents() {
+  baCurrentEvents.forEach(e => e.selected = false);
+  baUpdateEventsList();
+  document.getElementById('ba-preview-card').style.display = 'none';
+}
+
+function baUpdatePreview() {
+  const selected = baCurrentEvents.filter(e => e.selected);
+  const html = selected.map(evt => `
+    <div class="preview-scroll">
+      <table class="preview-table">
+        <tr><td>Evento</td><td>${evt.title}</td></tr>
+        <tr><td>Fecha</td><td>${evt.date || 'No especificada'}</td></tr>
+        <tr><td>Ubicación</td><td>${evt.location || 'No especificada'}</td></tr>
+        <tr><td>Precio mínimo</td><td>€${evt.price || '?'}</td></tr>
+        <tr><td>Disponibilidad</td><td>${evt.stock}</td></tr>
+        <tr><td>Link Viagogo</td><td><a href="${evt.viagogo_url}" target="_blank" style="color:#0071e3;text-decoration:none">Ver en Viagogo</a></td></tr>
+      </table>
+    </div>
+  `).join('<div style="height:8px"></div>');
+  
+  document.getElementById('ba-preview-area').innerHTML = html;
+}
+
+function baPublishToShopify() {
+  const selected = baCurrentEvents.filter(e => e.selected);
+  if (selected.length === 0) {
+    alert('Selecciona al menos un evento');
+    return;
+  }
+  
+  if (!shopifyConfigured()) {
+    alert('Configura Shopify en la pestaña de Configuración primero');
+    showPage('config');
+    return;
+  }
+  
+  const logBox = document.getElementById('ba-log-box');
+  logBox.textContent = '';
+  logBox.classList.add('visible');
+  
+  baLog('📡 Iniciando publicación en Shopify...\n');
+  baPublishEventsSequence(selected, 0);
+}
+
+function baPublishEventsSequence(events, index) {
+  if (index >= events.length) {
+    baLog('\n✅ ¡Todos los eventos publicados!');
+    return;
+  }
+  
+  const evt = events[index];
+  baLog(`\n📤 Publicando: ${evt.title}...`);
+  
+  const productData = {
+    title: evt.title,
+    bodyHtml: `<p><strong>Evento:</strong> ${evt.title}</p>
+<p><strong>Fecha:</strong> ${evt.date || 'No especificada'}</p>
+<p><strong>Ubicación:</strong> ${evt.location || 'No especificada'}</p>
+<p><strong>Precio mínimo:</strong> €${evt.price || '?'}</p>
+<p><strong>Disponibilidad:</strong> ${evt.stock}</p>
+<p><a href="${evt.viagogo_url}" target="_blank">Comprar en Viagogo</a></p>`,
+    vendor: 'Viagogo',
+    productType: evt.event_type === 'football' ? 'Tickets Fútbol' : (evt.event_type === 'concert' ? 'Tickets Conciertos' : 'Tickets'),
+    tags: [evt.title, evt.event_type, 'viagogo']
+  };
+  
+  baPublishProductToShopify(productData, () => {
+    baLog(`✅ Publicado: ${evt.title}`);
+    baPublishEventsSequence(events, index + 1);
+  }, () => {
+    baLog(`❌ Error publicando: ${evt.title}`);
+    baPublishEventsSequence(events, index + 1);
+  });
+}
+
+function baPublishProductToShopify(productData, onSuccess, onError) {
+  const store = cleanField('shop-store');
+  const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=`;
+  
+  getShopifyToken()
+    .then(token => {
+      return shopifyFetch(url + encodeURIComponent(token), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product: productData })
+      });
+    })
+    .then(res => res.ok ? onSuccess() : onError())
+    .catch(err => { baLog(`❌ Error Shopify: ${err.message}`); onError(); });
+}
+
+function baLog(msg) {
+  const box = document.getElementById('ba-log-box');
+  box.textContent += msg;
+  box.scrollTop = box.scrollHeight;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════════════════
+
 async function loadVersionTag() {
   try {
     const res = await fetch('https://api.github.com/repos/ceo450/infotickets-panel/commits/main');
@@ -608,10 +993,12 @@ async function loadVersionTag() {
     document.getElementById('version-tag').textContent = '';
   }
 }
-// ── INIT ──────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
+  baLoadConfig();
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
+  BA_FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('change', baSaveConfig); });
   renderShopifyStatusBar();
   loadVersionTag();
 });
