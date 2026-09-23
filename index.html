@@ -81,6 +81,17 @@
   .badge-hot { background: #fff1e6; color: #c2410c; }
   .badge-warn { background: #fff3cd; color: #856404; }
   @media (max-width: 600px) { .ba-settings { grid-template-columns: 1fr; } }
+  .view-toggle { display: inline-flex; background: #f0f0f0; border-radius: 8px; padding: 3px; margin-bottom: 14px; }
+  .view-toggle button { background: transparent; color: #6e6e73; padding: 5px 12px; font-size: 12px; border-radius: 6px; }
+  .view-toggle button.active { background: white; color: #1d1d1f; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .sheet-wrap { overflow: auto; max-height: 520px; border: 1px solid #e5e5e7; border-radius: 8px; }
+  .sheet { border-collapse: collapse; font-size: 12px; min-width: 100%; }
+  .sheet th { position: sticky; top: 0; background: #f5f5f7; color: #6e6e73; font-weight: 600; text-align: left; padding: 8px 10px; border-bottom: 1px solid #d2d2d7; border-right: 1px solid #e5e5e7; white-space: nowrap; z-index: 1; }
+  .sheet td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; border-right: 1px solid #f0f0f0; white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  .sheet td span { word-break: normal !important; }
+  .sheet tbody tr:hover td { background: #f0f7ff; }
+  .sheet .sheet-num { color: #aeaeb2; text-align: right; background: #fafafa; position: sticky; left: 0; }
+  .sheet th.sheet-num { z-index: 2; }
   @media (max-width: 600px) { .grid3 { grid-template-columns: 1fr; } header { padding: 0 16px; } }
 </style>
 </head>
@@ -546,7 +557,7 @@ function updatePreview() {
   if (!selectedEvents.length) { card.style.display = 'none'; return; }
   card.style.display = 'block';
   const sitename = document.getElementById('sitename').value.trim() || 'Infotickets.com';
-  document.getElementById('preview-area').innerHTML = selectedEvents.map((ev, i) => {
+  const items = selectedEvents.map((ev, i) => {
     const dt = parseDate(ev);
     const title = ev.name || '';
     const flag = flagEmoji(ev.venue?.location?.country || '');
@@ -572,14 +583,39 @@ function updatePreview() {
       ['competicion', competition], ['tipo', 'Tickets'],
       ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${affUrl}</span>`],
     ];
-    return `<div style="margin-bottom:20px">
+    return { label: `${i+1}. ${title} ${catBadge(ev.category)}`, remove: `toggleEvent('${ev.eventId}')`, rows };
+  });
+  document.getElementById('preview-area').innerHTML = renderPreview(items, 'preview');
+}
+// ── VISTA LISTA / TABLA (compartida por Ticombo y Browse AI) ─────────────────
+// items: [{ label, remove, rows: [[campo, valorHTML], ...] }]
+function getPreviewMode() { return localStorage.getItem('it_preview_mode') === 'table' ? 'table' : 'list'; }
+function setPreviewMode(mode) {
+  localStorage.setItem('it_preview_mode', mode);
+  updatePreview();
+  if (typeof baUpdatePreview === 'function') baUpdatePreview();
+}
+function renderPreview(items, prefix) {
+  const mode = getPreviewMode();
+  const toggle = `<div class="view-toggle">
+    <button class="${mode === 'list' ? 'active' : ''}" onclick="setPreviewMode('list')">☰ Lista</button>
+    <button class="${mode === 'table' ? 'active' : ''}" onclick="setPreviewMode('table')">▦ Tabla</button>
+  </div>`;
+  if (!items.length) return toggle;
+  if (mode === 'list') {
+    return toggle + items.map(it => `<div style="margin-bottom:20px">
       <div style="font-weight:600;font-size:14px;padding:10px 12px;background:#f5f5f7;border-radius:8px;display:flex;justify-content:space-between;align-items:center;margin-bottom:0">
-        <span>${i+1}. ${title} ${catBadge(ev.category)}</span>
-        <button class="btn-danger btn-sm" onclick="toggleEvent('${ev.eventId}')">Quitar</button>
+        <span>${it.label}</span>
+        <button class="btn-danger btn-sm" onclick="${it.remove}">Quitar</button>
       </div>
-      <div class="preview-scroll"><table class="preview-table">${rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table></div>
-    </div>`;
-  }).join('');
+      <div class="preview-scroll"><table class="preview-table">${it.rows.map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')}</table></div>
+    </div>`).join('');
+  }
+  const cols = items[0].rows.map(r => r[0]);
+  return toggle + `<div class="sheet-wrap"><table class="sheet">
+    <thead><tr><th class="sheet-num">#</th>${cols.map(c => `<th>${c}</th>`).join('')}<th></th></tr></thead>
+    <tbody>${items.map((it, i) => `<tr><td class="sheet-num">${i+1}</td>${it.rows.map(([,v]) => `<td>${v}</td>`).join('')}<td><button class="btn-danger btn-sm" onclick="${it.remove}" title="Quitar">✕</button></td></tr>`).join('')}</tbody>
+  </table></div>`;
 }
 // ── SHOPIFY PUBLISH ───────────────────────────────────────────────────────────
 function buildShopifyProduct(ev) {
@@ -1036,7 +1072,7 @@ function baUpdatePreview() {
   document.getElementById('ba-publish-btn').disabled = sel.length === 0;
   if (!sel.length) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  document.getElementById('ba-preview-area').innerHTML = sel.map((ev, i) => {
+  const items = sel.map((ev, i) => {
     const d = baBuildData(ev);
     const rows = [
       ['Title', d.titleFlag], ['Handle', d.handle], ['SKU', d.sku],
@@ -1046,14 +1082,9 @@ function baUpdatePreview() {
       ['competicion', d.competition], ['tipo', 'Tickets'],
       ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${esc(d.affUrl)}</span>`],
     ];
-    return `<div style="margin-bottom:20px">
-      <div style="font-weight:600;font-size:14px;padding:10px 12px;background:#f5f5f7;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-        <span>${i+1}. ${esc(d.title)} — ${esc(ev.city)}</span>
-        <button class="btn-danger btn-sm" onclick="baToggle('${ev.id}')">Quitar</button>
-      </div>
-      <div class="preview-scroll"><table class="preview-table">${rows.map(([k,v]) => `<tr><td>${k}</td><td>${k === 'viagogo_url' ? v : esc(v)}</td></tr>`).join('')}</table></div>
-    </div>`;
-  }).join('');
+    return { label: `${i+1}. ${esc(d.title)} — ${esc(ev.city)}`, remove: `baToggle('${ev.id}')`, rows: rows.map(([k,v]) => [k, k === 'viagogo_url' ? v : esc(v)]) };
+  });
+  document.getElementById('ba-preview-area').innerHTML = renderPreview(items, 'ba');
 }
 function baBuildShopifyProduct(ev) {
   const d = baBuildData(ev);
