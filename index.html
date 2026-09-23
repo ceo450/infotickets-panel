@@ -172,7 +172,7 @@
         <select id="ba-type" onchange="baRenderEvents(); baUpdatePreview();"><option value="music">Concierto</option><option value="sports">Partido</option></select>
       </div>
       <div class="field"><label>Título del producto (vacío = nombre de cada evento)</label><input type="text" id="ba-title-override" autocomplete="off" oninput="baRenderEvents(); baUpdatePreview();" /></div>
-      <div class="field"><label>Competición / gira</label><input type="text" id="ba-competition" autocomplete="off" oninput="baUpdatePreview()" placeholder="Ej: BIGBANG World Tour" /></div>
+      <div class="field"><label>Competición / gira</label><input type="text" id="ba-competition" autocomplete="off" oninput="baUpdatePreview()" placeholder="Vacío = Concerts (en conciertos)" /></div>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <span id="ba-events-count" style="font-size:13px;color:#6e6e73"></span>
@@ -220,7 +220,8 @@
     <p class="card-title">🤖 Configuración Browse AI / Viagogo</p>
     <div class="grid3">
       <div class="field"><label>API Key Browse AI</label><input type="text" id="ba-api-key" name="it-field-b1" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="9f94c7e6-...:85b4d012-..." /></div>
-      <div class="field" style="grid-column: span 2"><label>Prefijo de afiliado Viagogo (opcional — vacío = enlace directo)</label><input type="text" id="vgg-aff-prefix" name="it-field-b2" autocomplete="off" placeholder="Pega el enlace de afiliado; usa {url} donde vaya la URL del evento" /></div>
+      <div class="field"><label>Camref Viagogo (Partnerize)</label><input type="text" id="vgg-camref" name="it-field-b2" autocomplete="off" placeholder="1011l4hFY3" /></div>
+      <div class="field"><label>p_id Viagogo (Partnerize)</label><input type="text" id="vgg-pid" name="it-field-b3" autocomplete="off" placeholder="1100l633739" /></div>
     </div>
     <p style="font-size:12px;color:#6e6e73;margin-top:12px">Los robots se gestionan en la pestaña 🤖 Browse AI.</p>
   </div>
@@ -239,7 +240,7 @@ function showPage(name) {
   if (name === 'browse-ai') { const b = document.getElementById('ba-shopify-status-bar'), m = document.getElementById('shopify-status-bar'); if (b && m) b.innerHTML = m.innerHTML; }
 }
 // ── CONFIG PERSISTENCE ────────────────────────────────────────────────────────
-const FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret','ba-api-key','vgg-aff-prefix'];
+const FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret','ba-api-key','vgg-camref','vgg-pid'];
 let saveTimer;
 function saveConfig() {
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) localStorage.setItem('it_'+id, el.value); });
@@ -956,10 +957,8 @@ function baLoadRows(rows, label) {
   baEvents.forEach(e => counts[e.name] = (counts[e.name] || 0) + 1);
   const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const titleEl = document.getElementById('ba-title-override');
-  const compEl = document.getElementById('ba-competition');
   const allSame = names.length > 0 && counts[names[0]] >= baEvents.length / 2;
   if (!titleEl.value && allSame) titleEl.value = names[0];
-  if (!compEl.value) { const tour = names.find(n => /tour/i.test(n)); if (tour) compEl.value = tour; }
   document.getElementById('ba-source-label').textContent = label;
   document.getElementById('ba-events-card').style.display = 'block';
   baRenderEvents(); baUpdatePreview();
@@ -992,10 +991,15 @@ function baSelectAll() { baSelected = new Set(baEvents.map(e => e.id)); baRender
 function baDeselectAll() { baSelected = new Set(); baRenderEvents(); baUpdatePreview(); }
 
 // ── Paso 3: producto Shopify (misma estructura que Ticombo) ────────────────────
-function baAffUrl(ev) {
-  const prefix = cleanField('vgg-aff-prefix');
-  if (!prefix) return ev.url;
-  return prefix.includes('{url}') ? prefix.replace('{url}', encodeURIComponent(ev.url)) : prefix + encodeURIComponent(ev.url);
+// Mismo formato Partnerize que los productos Viagogo que ya hay en la tienda:
+// viagogo.prf.hn/click/camref:X/pubref:Web/ar:SKU/[p_id:Y]/destination:www.viagogo.com/E-ID
+const VGG_CAMREF_DEFAULT = '1011l4hFY3';
+const VGG_PID_DEFAULT = '1100l633739';
+function baAffUrl(ev, sku) {
+  const camref = cleanField('vgg-camref') || VGG_CAMREF_DEFAULT;
+  const pid = cleanField('vgg-pid') || VGG_PID_DEFAULT;
+  const dest = /^\d+$/.test(ev.id) ? `https://www.viagogo.com/E-${ev.id}` : ev.url;
+  return `https://viagogo.prf.hn/click/camref:${camref}/pubref:Web/ar:${sku}/[p_id:${pid}]/destination:${encodeURIComponent(dest)}`;
 }
 function baBuildData(ev) {
   const dt = ev.dt;
@@ -1009,13 +1013,20 @@ function baBuildData(ev) {
     ? `${slugify(title)}-${slugify(ev.city)}-${dt.getDate()}-${MONTHS_EN[dt.getMonth()]}-${dt.getFullYear()}`
     : `${slugify(title)}-tickets`;
   const monthStr = MONTHS_LONG[dt.getMonth()];
+  const dateStr = `${monthStr} ${dt.getDate()}, ${dt.getFullYear()}`;
+  // Formatos iguales a los del catálogo actual (p. ej. "Olivia Rodrigo - Hartford 🇺🇸")
+  const baseTitle = isMusic && ev.city ? `${title} - ${ev.city}` : title;
   return {
-    title, titleFlag: flag ? `${title} ${flag}` : title, handle, sku,
+    title, titleFlag: flag ? `${baseTitle} ${flag}` : baseTitle, handle, sku,
     seoTitle: `Buy ${title} tickets${ev.venue ? ` at ${ev.venue}` : ''} | ${sitename}`,
-    seoDesc: `Enjoy the ${evWord} ${title} in ${ev.city}${ev.venue ? ` at ${ev.venue}` : ''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`,
+    seoDesc: isMusic
+      ? `Enjoy ${title}'s concert in ${ev.city}${ev.venue ? ` at ${ev.venue}` : ''} on ${dateStr}, buy the best tickets for ${title} at ${sitename}`
+      : `Get the best ${title} tickets${ev.venue ? ` at ${ev.venue}` : ''} in ${ev.city} on ${dateStr}. Book now at ${sitename}.`,
     dateMeta: `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00-04:00`,
-    competition: document.getElementById('ba-competition').value.trim() || (isMusic ? 'Concert' : ''),
-    affUrl: baAffUrl(ev)
+    competition: document.getElementById('ba-competition').value.trim() || (isMusic ? 'Concerts' : ''),
+    affUrl: baAffUrl(ev, sku),
+    resolvedUrl: `https://viagogo.prf.hn/click/camref:${cleanField('vgg-camref') || VGG_CAMREF_DEFAULT}/pubref:Web/ar:${sku}/[p_id:${cleanField('vgg-pid') || VGG_PID_DEFAULT}]/destination:${encodeURIComponent(ev.url)}`,
+    countryCode: ev.code || ev.country
   };
 }
 function baUpdatePreview() {
@@ -1031,7 +1042,7 @@ function baUpdatePreview() {
       ['Title', d.titleFlag], ['Handle', d.handle], ['SKU', d.sku],
       ['Template Suffix', 'viagogo-products'], ['SEO Title', d.seoTitle],
       ['SEO Description', d.seoDesc], ['date_and_time', d.dateMeta + (ev.timeKnown ? '' : ' (hora por confirmar)')],
-      ['estadio', ev.venue], ['ubicacion', ev.city], ['country', ev.country],
+      ['estadio', ev.venue], ['ubicacion', ev.city], ['country', d.countryCode],
       ['competicion', d.competition], ['tipo', 'Tickets'],
       ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${esc(d.affUrl)}</span>`],
     ];
@@ -1048,7 +1059,7 @@ function baBuildShopifyProduct(ev) {
   const d = baBuildData(ev);
   return {
     product: {
-      title: d.titleFlag, handle: d.handle, vendor: 'Viagogo', product_type: 'Tickets', tags: ['Tickets'],
+      title: d.titleFlag, handle: d.handle, vendor: 'Infotickets', product_type: 'Tickets', tags: ['Tickets'],
       status: 'active', template_suffix: 'viagogo-products',
       variants: [{ sku: d.sku, price: '0.00', inventory_management: 'shopify', inventory_quantity: 100, inventory_policy: 'deny', fulfillment_service: 'manual', taxable: true, requires_shipping: false, option1: 'Match Tickets' }],
       options: [{ name: 'Category', values: ['Match Tickets'] }],
@@ -1058,9 +1069,10 @@ function baBuildShopifyProduct(ev) {
         { namespace: 'custom', key: 'ubicacion', value: ev.city, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'tipo', value: 'Tickets', type: 'single_line_text_field' },
         { namespace: 'custom', key: 'competicion', value: d.competition || 'Tickets', type: 'single_line_text_field' },
-        { namespace: 'custom', key: 'country', value: ev.country, type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'country', value: d.countryCode, type: 'single_line_text_field' },
         { namespace: 'custom', key: 'additional_information', value: 'Some links on this page may lead to affiliate sites, which means Infotickets could earn a commission if you make a purchase, at no extra cost to you.', type: 'multi_line_text_field' },
         { namespace: 'custom', key: 'viagogo_url', value: d.affUrl, type: 'url' },
+        { namespace: 'custom', key: 'viagogo_url_resolved', value: d.resolvedUrl, type: 'single_line_text_field' },
         { namespace: 'global', key: 'title_tag', value: d.seoTitle, type: 'single_line_text_field' },
         { namespace: 'global', key: 'description_tag', value: d.seoDesc, type: 'single_line_text_field' },
       ].filter(m => m.value)
