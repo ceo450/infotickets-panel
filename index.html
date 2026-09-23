@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Infotickets Panel — Ticombo → Shopify</title>
+<title>Infotickets Panel — Ticombo & Viagogo → Shopify</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1d1d1f; min-height: 100vh; }
@@ -66,6 +66,21 @@
   .config-saved { font-size: 11px; color: #34c759; margin-left: 8px; font-weight: 400; text-transform: none; letter-spacing: 0; opacity: 0; transition: opacity .3s; }
   .config-saved.show { opacity: 1; }
   .version-tag { font-size: 11px; color: rgba(255,255,255,0.4); font-weight: 400; margin-left: -12px; align-self: center; }
+  .ba-robot-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px; }
+  .ba-robot-row select { border: 1px solid #d2d2d7; border-radius: 8px; padding: 9px 12px; font-size: 14px; background: white; min-width: 260px; flex: 1; }
+  .ba-add-robot { display: none; background: #f5f5f7; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+  .ba-add-robot.visible { display: block; }
+  .ba-or { display: flex; align-items: center; gap: 12px; color: #6e6e73; font-size: 12px; margin: 20px 0 14px; }
+  .ba-or::before, .ba-or::after { content: ''; flex: 1; height: 1px; background: #e5e5e7; }
+  .ba-drop { border: 2px dashed #d2d2d7; border-radius: 12px; padding: 26px; text-align: center; font-size: 14px; color: #6e6e73; cursor: pointer; transition: border-color .15s, background .15s; }
+  .ba-drop:hover, .ba-drop.dragover { border-color: #0071e3; background: #f0f7ff; color: #0071e3; }
+  .ba-drop strong { color: #1d1d1f; }
+  .ba-status { font-size: 13px; color: #6e6e73; margin-top: 10px; min-height: 18px; }
+  .ba-settings { display: grid; grid-template-columns: 160px 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .ba-settings select { border: 1px solid #d2d2d7; border-radius: 8px; padding: 8px 12px; font-size: 14px; background: white; }
+  .badge-hot { background: #fff1e6; color: #c2410c; }
+  .badge-warn { background: #fff3cd; color: #856404; }
+  @media (max-width: 600px) { .ba-settings { grid-template-columns: 1fr; } }
   @media (max-width: 600px) { .grid3 { grid-template-columns: 1fr; } header { padding: 0 16px; } }
 </style>
 </head>
@@ -75,6 +90,7 @@
   <span class="version-tag" id="version-tag">···</span>
   <div class="nav-tab active" onclick="showPage('panel')" id="tab-panel">Panel</div>
   <div class="nav-tab" onclick="showPage('config')" id="tab-config">⚙️ Configuración</div>
+  <div class="nav-tab" onclick="showPage('browse-ai')" id="tab-browse-ai">🤖 Browse AI</div>
 </header>
 <!-- PAGE: PANEL -->
 <div class="page active" id="page-panel">
@@ -115,6 +131,70 @@
   </div>
 </div>
 </div>
+<!-- PAGE: BROWSE AI -->
+<div class="page" id="page-browse-ai">
+<div class="container">
+  <div id="ba-shopify-status-bar"></div>
+  <!-- PASO 1 -->
+  <div class="card">
+    <p class="card-title">🤖 Paso 1 — Obtener eventos de Viagogo</p>
+    <div class="tip">Elige el robot y la página de Viagogo que quieres leer. Si la conexión con Browse AI falla, sube el CSV exportado desde browse.ai: el resultado es el mismo.</div>
+    <div class="ba-robot-row">
+      <div class="field" style="flex:1;min-width:260px"><label>Robot</label><select id="ba-robot-select" onchange="baOnRobotChange()"></select></div>
+      <button class="btn-secondary btn-sm" onclick="baToggleAddRobot()">+ Añadir robot</button>
+      <button class="btn-secondary btn-sm" onclick="baDeleteRobot()" id="ba-del-robot-btn">Quitar robot</button>
+    </div>
+    <div class="ba-add-robot" id="ba-add-robot">
+      <div class="grid3" style="margin-bottom:10px">
+        <div class="field"><label>Nombre (para reconocerlo)</label><input type="text" id="ba-new-name" autocomplete="off" placeholder="Viagogo — lista de artista" /></div>
+        <div class="field"><label>Robot ID</label><input type="text" id="ba-new-id" autocomplete="off" placeholder="01a0c9ce-a616-..." /></div>
+        <div class="field"><label>URL por defecto (opcional)</label><input type="text" id="ba-new-url" autocomplete="off" placeholder="https://www.viagogo.es/..." /></div>
+      </div>
+      <button class="btn-primary btn-sm" onclick="baSaveRobot()">Guardar robot</button>
+    </div>
+    <div class="search-row">
+      <input type="text" id="ba-origin-url" placeholder="URL de Viagogo, ej: https://www.viagogo.es/Entradas-Conciertos/Pop-Rock/BIGBANG-Entradas" onkeydown="if(event.key==='Enter') baRunRobot()" />
+      <button class="btn-primary" onclick="baRunRobot()" id="ba-run-btn">Ejecutar robot</button>
+      <button class="btn-secondary" onclick="baLoadLatestTask()" id="ba-latest-btn" title="No gasta créditos: recupera el resultado de la última ejecución">Usar última ejecución</button>
+    </div>
+    <div class="ba-status" id="ba-status"></div>
+    <div class="ba-or">o sube el CSV exportado de Browse AI</div>
+    <div class="ba-drop" id="ba-drop" onclick="document.getElementById('ba-file').click()">
+      <strong>Arrastra aquí el CSV</strong> o haz clic para elegirlo
+      <input type="file" id="ba-file" accept=".csv,text/csv" style="display:none" onchange="baHandleFile(this.files[0]); this.value='';" />
+    </div>
+  </div>
+  <!-- PASO 2 -->
+  <div class="card" id="ba-events-card" style="display:none">
+    <p class="card-title">📅 Paso 2 — Seleccionar eventos <span id="ba-source-label" style="color:#0071e3;text-transform:none;font-weight:400;letter-spacing:0"></span></p>
+    <div class="ba-settings">
+      <div class="field"><label>Tipo</label>
+        <select id="ba-type" onchange="baRenderEvents(); baUpdatePreview();"><option value="music">Concierto</option><option value="sports">Partido</option></select>
+      </div>
+      <div class="field"><label>Título del producto (vacío = nombre de cada evento)</label><input type="text" id="ba-title-override" autocomplete="off" oninput="baRenderEvents(); baUpdatePreview();" /></div>
+      <div class="field"><label>Competición / gira</label><input type="text" id="ba-competition" autocomplete="off" oninput="baUpdatePreview()" placeholder="Ej: BIGBANG World Tour" /></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <span id="ba-events-count" style="font-size:13px;color:#6e6e73"></span>
+      <div style="display:flex;gap:8px">
+        <button class="btn-secondary btn-sm" onclick="baSelectAll()">Seleccionar todos</button>
+        <button class="btn-secondary btn-sm" onclick="baDeselectAll()">Deseleccionar todos</button>
+      </div>
+    </div>
+    <div id="ba-events-results" class="results-list"></div>
+  </div>
+  <!-- PASO 3 -->
+  <div class="card" id="ba-preview-card" style="display:none">
+    <p class="card-title">👁 Paso 3 — Preview <span class="sel-count" id="ba-sel-count">0</span></p>
+    <div id="ba-preview-area"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-success" onclick="baPublishToShopify()" id="ba-publish-btn">🚀 Publicar en Shopify</button>
+      <button class="btn-secondary" onclick="baDeselectAll()">Limpiar selección</button>
+    </div>
+    <div class="log-box" id="ba-log-box"></div>
+  </div>
+</div>
+</div>
 <!-- PAGE: CONFIG -->
 <div class="page" id="page-config">
 <div class="container">
@@ -136,6 +216,14 @@
     </div>
     <p style="font-size:12px;color:#6e6e73;margin-top:16px">Los datos se guardan en tu navegador y nunca se envían a ningún servidor externo.</p>
   </div>
+  <div class="card">
+    <p class="card-title">🤖 Configuración Browse AI / Viagogo</p>
+    <div class="grid3">
+      <div class="field"><label>API Key Browse AI</label><input type="text" id="ba-api-key" name="it-field-b1" autocomplete="off" data-lpignore="true" data-1p-ignore placeholder="9f94c7e6-...:85b4d012-..." /></div>
+      <div class="field" style="grid-column: span 2"><label>Prefijo de afiliado Viagogo (opcional — vacío = enlace directo)</label><input type="text" id="vgg-aff-prefix" name="it-field-b2" autocomplete="off" placeholder="Pega el enlace de afiliado; usa {url} donde vaya la URL del evento" /></div>
+    </div>
+    <p style="font-size:12px;color:#6e6e73;margin-top:12px">Los robots se gestionan en la pestaña 🤖 Browse AI.</p>
+  </div>
 </div>
 </div>
 <script>
@@ -148,9 +236,10 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   document.getElementById('tab-' + name).classList.add('active');
   if (name === 'config') renderAuthArea();
+  if (name === 'browse-ai') { const b = document.getElementById('ba-shopify-status-bar'), m = document.getElementById('shopify-status-bar'); if (b && m) b.innerHTML = m.innerHTML; }
 }
 // ── CONFIG PERSISTENCE ────────────────────────────────────────────────────────
-const FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret'];
+const FIELDS = ['ticombo-key','camref','sitename','shop-store','shop-client-id','shop-secret','ba-api-key','vgg-aff-prefix'];
 let saveTimer;
 function saveConfig() {
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) localStorage.setItem('it_'+id, el.value); });
@@ -596,6 +685,453 @@ async function publishToShopify() {
   btn.disabled = false;
   btn.textContent = '🚀 Publicar en Shopify';
 }
+// ══ BROWSE AI / VIAGOGO ═══════════════════════════════════════════════════════
+// Pestaña independiente: no toca nada del flujo de Ticombo. Reutiliza solo la
+// conexión con Shopify (getShopifyToken, shopifyFetch, findExistingProduct).
+const BROWSE_AI = 'https://api.browse.ai/v2';
+const BA_DEFAULT_ROBOTS = [
+  { name: 'Viagogo — lista de artista', id: '01a0c9ce-a616-7e23-993b-97b095865218', url: 'https://www.viagogo.es/Entradas-Conciertos/Pop-Rock/BIGBANG-Entradas' }
+];
+const MONTHS_SHORT = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+const WEEKDAYS_SHORT = ['sun','mon','tue','wed','thu','fri','sat'];
+let baEvents = [];        // eventos normalizados
+let baSelected = new Set(); // ids seleccionados
+let baDiscarded = 0;
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// ── Robots (guardados en el navegador) ────────────────────────────────────────
+function baGetRobots() {
+  try {
+    const r = JSON.parse(localStorage.getItem('ba_robots') || 'null');
+    if (Array.isArray(r) && r.length) return r;
+  } catch(e) {}
+  return BA_DEFAULT_ROBOTS.slice();
+}
+function baSetRobots(list) { localStorage.setItem('ba_robots', JSON.stringify(list)); }
+function baRenderRobots() {
+  const sel = document.getElementById('ba-robot-select');
+  const robots = baGetRobots();
+  const current = localStorage.getItem('ba_robot_current');
+  sel.innerHTML = robots.map(r => `<option value="${esc(r.id)}">${esc(r.name)} (${esc(r.id.slice(0,8))}…)</option>`).join('');
+  if (current && robots.some(r => r.id === current)) sel.value = current;
+  document.getElementById('ba-del-robot-btn').disabled = robots.length <= 1;
+  baOnRobotChange(true);
+}
+function baCurrentRobot() {
+  const id = document.getElementById('ba-robot-select').value;
+  return baGetRobots().find(r => r.id === id) || null;
+}
+function baOnRobotChange(keepUrl) {
+  const r = baCurrentRobot();
+  if (!r) return;
+  localStorage.setItem('ba_robot_current', r.id);
+  const urlEl = document.getElementById('ba-origin-url');
+  if (!keepUrl || !urlEl.value) urlEl.value = r.url || '';
+}
+function baToggleAddRobot() { document.getElementById('ba-add-robot').classList.toggle('visible'); }
+function baSaveRobot() {
+  const name = document.getElementById('ba-new-name').value.trim();
+  const id = document.getElementById('ba-new-id').value.trim();
+  const url = document.getElementById('ba-new-url').value.trim();
+  if (!id) { alert('Falta el Robot ID'); return; }
+  const robots = baGetRobots().filter(r => r.id !== id);
+  robots.push({ name: name || `Robot ${id.slice(0,8)}`, id, url });
+  baSetRobots(robots);
+  localStorage.setItem('ba_robot_current', id);
+  ['ba-new-name','ba-new-id','ba-new-url'].forEach(f => document.getElementById(f).value = '');
+  document.getElementById('ba-add-robot').classList.remove('visible');
+  document.getElementById('ba-origin-url').value = url;
+  baRenderRobots();
+}
+function baDeleteRobot() {
+  const r = baCurrentRobot();
+  const robots = baGetRobots();
+  if (!r || robots.length <= 1) return;
+  if (!confirm(`¿Quitar el robot "${r.name}" del panel? (No se borra en browse.ai)`)) return;
+  baSetRobots(robots.filter(x => x.id !== r.id));
+  localStorage.removeItem('ba_robot_current');
+  baRenderRobots();
+}
+
+// ── API de Browse AI ──────────────────────────────────────────────────────────
+function baStatus(msg, type) {
+  const el = document.getElementById('ba-status');
+  const color = type === 'error' ? '#ff3b30' : type === 'success' ? '#16a34a' : '#6e6e73';
+  el.innerHTML = `<span style="color:${color}">${msg}</span>`;
+}
+async function baApi(path, options = {}) {
+  const key = cleanField('ba-api-key');
+  if (!key) throw new Error('Falta el API Key de Browse AI en ⚙️ Configuración');
+  let res;
+  try {
+    res = await fetch(`${BROWSE_AI}${path}`, {
+      ...options,
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', ...(options.headers || {}) }
+    });
+  } catch(e) {
+    throw new Error('El navegador no pudo conectar con Browse AI (probablemente bloqueo CORS). Sube el CSV exportado mientras tanto.');
+  }
+  const raw = await res.text();
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { throw new Error(`Respuesta no válida de Browse AI (HTTP ${res.status})`); }
+  if (!res.ok || (data.statusCode && data.statusCode >= 400)) {
+    throw new Error(data.messageCode || data.message || `Error de Browse AI (HTTP ${res.status})`);
+  }
+  return data;
+}
+function baRowsFromTask(task) {
+  const lists = task?.capturedLists || {};
+  const names = Object.keys(lists);
+  if (!names.length) return [];
+  // Si el robot captura varias listas, usamos la más larga
+  names.sort((a, b) => (lists[b]?.length || 0) - (lists[a]?.length || 0));
+  return lists[names[0]] || [];
+}
+function baSetBusy(busy) {
+  document.getElementById('ba-run-btn').disabled = busy;
+  document.getElementById('ba-latest-btn').disabled = busy;
+}
+async function baRunRobot() {
+  const robot = baCurrentRobot();
+  const originUrl = document.getElementById('ba-origin-url').value.trim();
+  if (!robot) { alert('Añade un robot primero'); return; }
+  if (!originUrl) { alert('Pega la URL de Viagogo que quieres leer'); return; }
+  baSetBusy(true);
+  try {
+    baStatus('⏳ Lanzando el robot en Browse AI...');
+    const start = await baApi(`/robots/${robot.id}/tasks`, { method: 'POST', body: JSON.stringify({ inputParameters: { originUrl } }) });
+    const taskId = start?.result?.id;
+    if (!taskId) throw new Error('Browse AI no devolvió el ID de la tarea');
+    const t0 = Date.now();
+    while (true) {
+      await sleep(5000);
+      const secs = Math.round((Date.now() - t0) / 1000);
+      const data = await baApi(`/robots/${robot.id}/tasks/${taskId}`);
+      const task = data?.result;
+      const status = task?.status;
+      if (status === 'successful') {
+        const rows = baRowsFromTask(task);
+        baStatus(`✅ Robot terminado en ${secs}s — ${rows.length} filas capturadas`, 'success');
+        baLoadRows(rows, `desde el robot "${robot.name}"`);
+        break;
+      }
+      if (status === 'failed') throw new Error(`El robot falló en Browse AI${task?.userFriendlyError ? ': ' + task.userFriendlyError : ''}`);
+      if (secs > 600) throw new Error('El robot lleva más de 10 minutos. Revisa la tarea en browse.ai y usa "Usar última ejecución" cuando termine.');
+      baStatus(`⏳ Robot trabajando... ${secs}s`);
+    }
+  } catch(e) {
+    baStatus(`❌ ${esc(e.message)}`, 'error');
+  }
+  baSetBusy(false);
+}
+async function baLoadLatestTask() {
+  const robot = baCurrentRobot();
+  if (!robot) { alert('Añade un robot primero'); return; }
+  baSetBusy(true);
+  try {
+    baStatus('⏳ Buscando la última ejecución correcta...');
+    const data = await baApi(`/robots/${robot.id}/tasks?page=1`);
+    const items = data?.result?.robotTasks?.items || [];
+    const ok = items.filter(t => t.status === 'successful')
+      .sort((a, b) => (b.finishedAt || b.createdAt || 0) - (a.finishedAt || a.createdAt || 0));
+    if (!ok.length) throw new Error('Este robot no tiene ninguna ejecución correcta todavía');
+    const task = ok[0];
+    const rows = baRowsFromTask(task);
+    const when = task.finishedAt ? new Date(task.finishedAt).toLocaleString('es-ES') : '';
+    baStatus(`✅ Última ejecución${when ? ' (' + when + ')' : ''} — ${rows.length} filas`, 'success');
+    baLoadRows(rows, `última ejecución de "${robot.name}"`);
+  } catch(e) {
+    baStatus(`❌ ${esc(e.message)}`, 'error');
+  }
+  baSetBusy(false);
+}
+
+// ── CSV ───────────────────────────────────────────────────────────────────────
+function baParseCSV(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const rows = []; let row = []; let field = ''; let q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else q = false; }
+      else field += c;
+    } else if (c === '"') q = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(field); field = ''; rows.push(row); row = [];
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  const clean = rows.filter(r => r.some(v => v.trim() !== ''));
+  if (!clean.length) return [];
+  const head = clean[0].map(h => h.trim());
+  return clean.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? '').trim()])));
+}
+function baHandleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const rows = baParseCSV(reader.result);
+      if (!rows.length) throw new Error('El CSV está vacío');
+      baStatus(`✅ CSV "${esc(file.name)}" leído — ${rows.length} filas`, 'success');
+      baLoadRows(rows, `desde CSV`);
+    } catch(e) { baStatus(`❌ ${esc(e.message)}`, 'error'); }
+  };
+  reader.onerror = () => baStatus('❌ No se pudo leer el archivo', 'error');
+  reader.readAsText(file);
+}
+
+// ── Normalización de filas de Viagogo ─────────────────────────────────────────
+function baPick(row, ...keys) {
+  for (const k of keys) {
+    const found = Object.keys(row).find(x => x.trim().toLowerCase() === k.toLowerCase());
+    if (found && row[found] != null && String(row[found]).trim() !== '') return String(row[found]).trim();
+  }
+  return '';
+}
+// Viagogo solo da mes, día y día de la semana: el año se deduce buscando
+// el año (actual o siguiente) en el que ese día cae en ese día de la semana.
+function baInferDate(monthStr, dayStr, weekdayStr, timeStr) {
+  const m = MONTHS_SHORT.indexOf(monthStr.slice(0,3).toLowerCase());
+  const day = parseInt(dayStr, 10);
+  if (m < 0 || !day) return null;
+  const now = new Date();
+  const wd = WEEKDAYS_SHORT.indexOf(weekdayStr.slice(0,3).toLowerCase());
+  let year = null;
+  for (const y of [now.getFullYear(), now.getFullYear() + 1]) {
+    if (wd >= 0 && new Date(y, m, day).getDay() === wd) { year = y; break; }
+  }
+  if (year === null) year = m < now.getMonth() ? now.getFullYear() + 1 : now.getFullYear();
+  let h = 0, min = 0, timeKnown = false;
+  const tm = timeStr.match(/(\d{1,2}):(\d{2})\s*([AaPp][Mm])?/);
+  if (tm) {
+    h = parseInt(tm[1], 10); min = parseInt(tm[2], 10); timeKnown = true;
+    const ap = (tm[3] || '').toLowerCase();
+    if (ap === 'pm' && h < 12) h += 12;
+    if (ap === 'am' && h === 12) h = 0;
+  }
+  return { dt: new Date(year, m, day, h, min), timeKnown };
+}
+function baCleanLink(link) {
+  try { const u = new URL(link); return u.origin + u.pathname; } catch(e) { return link; }
+}
+function baNormalizeRow(row, i) {
+  const name = baPick(row, 'Event Name', 'Title', 'Event');
+  const venue = baPick(row, 'Venue', 'Stadium');
+  const location = baPick(row, 'Location');
+  const link = baPick(row, 'Event Link', 'Link', 'URL');
+  if (!name || !venue || !link) return null;
+  const d = baInferDate(baPick(row, 'Month'), baPick(row, 'Day'), baPick(row, 'Weekday'), baPick(row, 'Time'));
+  if (!d) return null;
+  const flagUrl = baPick(row, 'Flag Image', 'Flag');
+  const fm = flagUrl.match(/\/([a-z]{2})\.svg/i);
+  const code = fm ? fm[1].toUpperCase() : '';
+  const parts = location.split(',').map(s => s.trim()).filter(Boolean);
+  const city = parts[0] || '';
+  const url = baCleanLink(link);
+  const idm = url.match(/E-(\d+)/);
+  return {
+    id: idm ? idm[1] : `row${i}`,
+    name, venue, city, code,
+    country: code ? countryName(code) : (parts.length > 1 ? parts[parts.length - 1] : ''),
+    dt: d.dt, timeKnown: d.timeKnown,
+    availability: baPick(row, 'Availability'),
+    url
+  };
+}
+function baLoadRows(rows, label) {
+  const seen = new Set();
+  baEvents = []; baDiscarded = 0;
+  rows.forEach((r, i) => {
+    const ev = baNormalizeRow(r, i);
+    if (!ev || seen.has(ev.id)) { baDiscarded++; return; }
+    seen.add(ev.id); baEvents.push(ev);
+  });
+  baEvents.sort((a, b) => a.dt - b.dt);
+  baSelected = new Set();
+  // Sugerencias: nombre más repetido como título, y un nombre más largo como gira
+  const counts = {};
+  baEvents.forEach(e => counts[e.name] = (counts[e.name] || 0) + 1);
+  const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+  const titleEl = document.getElementById('ba-title-override');
+  const compEl = document.getElementById('ba-competition');
+  const allSame = names.length > 0 && counts[names[0]] >= baEvents.length / 2;
+  if (!titleEl.value && allSame) titleEl.value = names[0];
+  if (!compEl.value) { const tour = names.find(n => /tour/i.test(n)); if (tour) compEl.value = tour; }
+  document.getElementById('ba-source-label').textContent = label;
+  document.getElementById('ba-events-card').style.display = 'block';
+  baRenderEvents(); baUpdatePreview();
+}
+
+// ── Paso 2 ────────────────────────────────────────────────────────────────────
+function baTitle(ev) { return document.getElementById('ba-title-override').value.trim() || ev.name; }
+function baAvailBadge(a) {
+  if (!a) return '';
+  const cls = /hottest/i.test(a) ? 'badge-hot' : /sold out|sell out/i.test(a) ? 'badge-warn' : 'badge-other';
+  return `<span class="badge ${cls}">${esc(a)}</span>`;
+}
+function baRenderEvents() {
+  const el = document.getElementById('ba-events-results');
+  document.getElementById('ba-events-count').textContent =
+    `${baEvents.length} eventos${baDiscarded ? ` · ${baDiscarded} filas descartadas (vacías, sin recinto/enlace o repetidas)` : ''}`;
+  if (!baEvents.length) { el.innerHTML = '<div class="loading">No hay eventos válidos en estos datos</div>'; return; }
+  el.innerHTML = baEvents.map(ev => {
+    const sel = baSelected.has(ev.id);
+    const date = ev.dt.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    const time = ev.timeKnown ? ev.dt.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : 'hora por confirmar';
+    return `<div class="event-item ${sel ? 'selected' : ''}" onclick="baToggle('${ev.id}')">
+      <div><div class="event-name">${flagEmoji(ev.code)} ${esc(baTitle(ev))} ${baAvailBadge(ev.availability)}</div>
+      <div class="event-meta">${date} · ${time} · ${esc(ev.venue)} · ${esc(ev.city)}${ev.country ? ', ' + esc(ev.country) : ''}</div></div>
+      <span class="${sel ? 'check-icon' : 'plus-icon'}">${sel ? '✓' : '+'}</span></div>`;
+  }).join('');
+}
+function baToggle(id) { baSelected.has(id) ? baSelected.delete(id) : baSelected.add(id); baRenderEvents(); baUpdatePreview(); }
+function baSelectAll() { baSelected = new Set(baEvents.map(e => e.id)); baRenderEvents(); baUpdatePreview(); }
+function baDeselectAll() { baSelected = new Set(); baRenderEvents(); baUpdatePreview(); }
+
+// ── Paso 3: producto Shopify (misma estructura que Ticombo) ────────────────────
+function baAffUrl(ev) {
+  const prefix = cleanField('vgg-aff-prefix');
+  if (!prefix) return ev.url;
+  return prefix.includes('{url}') ? prefix.replace('{url}', encodeURIComponent(ev.url)) : prefix + encodeURIComponent(ev.url);
+}
+function baBuildData(ev) {
+  const dt = ev.dt;
+  const title = baTitle(ev);
+  const flag = flagEmoji(ev.code);
+  const isMusic = document.getElementById('ba-type').value === 'music';
+  const evWord = isMusic ? 'concert' : 'match';
+  const sitename = document.getElementById('sitename').value.trim() || 'Infotickets.com';
+  const sku = buildSKU(title, dt);
+  const handle = isMusic
+    ? `${slugify(title)}-${slugify(ev.city)}-${dt.getDate()}-${MONTHS_EN[dt.getMonth()]}-${dt.getFullYear()}`
+    : `${slugify(title)}-tickets`;
+  const monthStr = MONTHS_LONG[dt.getMonth()];
+  return {
+    title, titleFlag: flag ? `${title} ${flag}` : title, handle, sku,
+    seoTitle: `Buy ${title} tickets${ev.venue ? ` at ${ev.venue}` : ''} | ${sitename}`,
+    seoDesc: `Enjoy the ${evWord} ${title} in ${ev.city}${ev.venue ? ` at ${ev.venue}` : ''} on ${monthStr} ${dt.getDate()}, ${dt.getFullYear()}, buy the best tickets for this ${evWord} at ${sitename}`,
+    dateMeta: `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00-04:00`,
+    competition: document.getElementById('ba-competition').value.trim() || (isMusic ? 'Concert' : ''),
+    affUrl: baAffUrl(ev)
+  };
+}
+function baUpdatePreview() {
+  const card = document.getElementById('ba-preview-card');
+  const sel = baEvents.filter(e => baSelected.has(e.id));
+  document.getElementById('ba-sel-count').textContent = sel.length;
+  document.getElementById('ba-publish-btn').disabled = sel.length === 0;
+  if (!sel.length) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  document.getElementById('ba-preview-area').innerHTML = sel.map((ev, i) => {
+    const d = baBuildData(ev);
+    const rows = [
+      ['Title', d.titleFlag], ['Handle', d.handle], ['SKU', d.sku],
+      ['Template Suffix', 'viagogo-products'], ['SEO Title', d.seoTitle],
+      ['SEO Description', d.seoDesc], ['date_and_time', d.dateMeta + (ev.timeKnown ? '' : ' (hora por confirmar)')],
+      ['estadio', ev.venue], ['ubicacion', ev.city], ['country', ev.country],
+      ['competicion', d.competition], ['tipo', 'Tickets'],
+      ['viagogo_url', `<span style="color:#0071e3;word-break:break-all">${esc(d.affUrl)}</span>`],
+    ];
+    return `<div style="margin-bottom:20px">
+      <div style="font-weight:600;font-size:14px;padding:10px 12px;background:#f5f5f7;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+        <span>${i+1}. ${esc(d.title)} — ${esc(ev.city)}</span>
+        <button class="btn-danger btn-sm" onclick="baToggle('${ev.id}')">Quitar</button>
+      </div>
+      <div class="preview-scroll"><table class="preview-table">${rows.map(([k,v]) => `<tr><td>${k}</td><td>${k === 'viagogo_url' ? v : esc(v)}</td></tr>`).join('')}</table></div>
+    </div>`;
+  }).join('');
+}
+function baBuildShopifyProduct(ev) {
+  const d = baBuildData(ev);
+  return {
+    product: {
+      title: d.titleFlag, handle: d.handle, vendor: 'Viagogo', product_type: 'Tickets', tags: ['Tickets'],
+      status: 'active', template_suffix: 'viagogo-products',
+      variants: [{ sku: d.sku, price: '0.00', inventory_management: 'shopify', inventory_quantity: 100, inventory_policy: 'deny', fulfillment_service: 'manual', taxable: true, requires_shipping: false, option1: 'Match Tickets' }],
+      options: [{ name: 'Category', values: ['Match Tickets'] }],
+      metafields: [
+        { namespace: 'my_fields', key: 'date_and_time', value: d.dateMeta, type: 'date_time' },
+        { namespace: 'custom', key: 'estadio', value: ev.venue, type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'ubicacion', value: ev.city, type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'tipo', value: 'Tickets', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'competicion', value: d.competition || 'Tickets', type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'country', value: ev.country, type: 'single_line_text_field' },
+        { namespace: 'custom', key: 'additional_information', value: 'Some links on this page may lead to affiliate sites, which means Infotickets could earn a commission if you make a purchase, at no extra cost to you.', type: 'multi_line_text_field' },
+        { namespace: 'custom', key: 'viagogo_url', value: d.affUrl, type: 'url' },
+        { namespace: 'global', key: 'title_tag', value: d.seoTitle, type: 'single_line_text_field' },
+        { namespace: 'global', key: 'description_tag', value: d.seoDesc, type: 'single_line_text_field' },
+      ].filter(m => m.value)
+    }
+  };
+}
+function baLog(msg, type = 'info') {
+  const box = document.getElementById('ba-log-box');
+  box.classList.add('visible');
+  const color = type === 'error' ? '#ff453a' : type === 'success' ? '#30d158' : '#ebebf0';
+  box.innerHTML += `<div style="color:${color}">[${new Date().toLocaleTimeString()}] ${esc(msg)}</div>`;
+  box.scrollTop = box.scrollHeight;
+}
+async function baPublishToShopify() {
+  const sel = baEvents.filter(e => baSelected.has(e.id));
+  if (!sel.length) return;
+  if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
+  const store = cleanField('shop-store');
+  const btn = document.getElementById('ba-publish-btn');
+  btn.disabled = true; btn.textContent = '⏳ Publicando...';
+  document.getElementById('ba-log-box').innerHTML = '';
+  let token;
+  try {
+    baLog('Obteniendo token de Shopify...');
+    token = await getShopifyToken();
+    baLog('✓ Token obtenido', 'success');
+  } catch(e) {
+    baLog(`✗ No se pudo obtener token de Shopify: ${e.message}`, 'error');
+    btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify';
+    return;
+  }
+  let ok = 0, fail = 0;
+  for (let i = 0; i < sel.length; i++) {
+    const ev = sel[i];
+    const label = `${baTitle(ev)} — ${ev.city} ${ev.dt.toLocaleDateString('es-ES')}`;
+    try {
+      const product = baBuildShopifyProduct(ev);
+      baLog(`[${i+1}/${sel.length}] Comprobando si "${label}" ya existe...`);
+      const existing = await findExistingProduct(store, token, product.product.handle);
+      let url, method;
+      if (existing) {
+        if (existing.variants && existing.variants[0]) product.product.variants[0].id = existing.variants[0].id;
+        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products/${existing.id}.json`)}&shopify_token=${encodeURIComponent(token)}`;
+        method = 'PUT';
+        baLog(`  → ya existe (ID ${existing.id}), actualizando en vez de duplicar...`);
+      } else {
+        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
+        method = 'POST';
+      }
+      const res = await shopifyFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(product) });
+      if (!res.ok) throw new Error(await res.text());
+      baLog(existing ? `✓ Actualizado: ${label}` : `✓ Publicado: ${label}`, 'success');
+      ok++;
+    } catch(e) {
+      baLog(`✗ Error en ${label}: ${e.message}`, 'error');
+      fail++;
+    }
+  }
+  baLog(`--- Finalizado: ${ok} publicados, ${fail} errores ---`, ok > 0 ? 'success' : 'error');
+  btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify';
+}
+function baInit() {
+  baRenderRobots();
+  const drop = document.getElementById('ba-drop');
+  ['dragenter','dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('dragover'); }));
+  ['dragleave','drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('dragover'); }));
+  drop.addEventListener('drop', e => baHandleFile(e.dataTransfer.files[0]));
+  const bar = document.getElementById('ba-shopify-status-bar');
+  const main = document.getElementById('shopify-status-bar');
+  if (bar && main) bar.innerHTML = main.innerHTML;
+}
 // ── VERSION TAG (automático desde el último commit de GitHub) ─────────────────
 async function loadVersionTag() {
   try {
@@ -612,6 +1148,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadConfig();
   FIELDS.forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', saveConfig); });
   renderShopifyStatusBar();
+  baInit();
   loadVersionTag();
 });
 </script>
