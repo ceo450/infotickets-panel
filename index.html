@@ -155,7 +155,7 @@
   <!-- PASO 1 -->
   <div class="card">
     <p class="card-title">🤖 Paso 1 — Obtener eventos de Viagogo</p>
-    <div class="tip">Elige el robot y la página de Viagogo que quieres leer. Si la conexión con Browse AI falla, sube el CSV exportado desde browse.ai: el resultado es el mismo.</div>
+    <div class="tip">Dos formas independientes: lanzar un robot desde aquí, o subir directamente un CSV exportado de browse.ai. <b>El CSV no depende de ningún robot</b>: sirve cualquier exportación, aunque el robot ya no exista.</div>
     <div class="ba-robot-row">
       <div class="field" style="flex:1;min-width:260px"><label>Robot</label><select id="ba-robot-select" onchange="baOnRobotChange()"></select></div>
       <button class="btn-secondary btn-sm" onclick="baToggleAddRobot()">+ Añadir robot</button>
@@ -175,7 +175,7 @@
       <button class="btn-secondary" onclick="baLoadLatestTask()" id="ba-latest-btn" title="No gasta créditos: recupera el resultado de la última ejecución">Usar última ejecución</button>
     </div>
     <div class="ba-status" id="ba-status"></div>
-    <div class="ba-or">o sube el CSV exportado de Browse AI</div>
+    <div class="ba-or">o sube un CSV exportado de Browse AI (de cualquier robot)</div>
     <div class="ba-drop" id="ba-drop" onclick="document.getElementById('ba-file').click()">
       <strong>Arrastra aquí el CSV</strong> o haz clic para elegirlo
       <input type="file" id="ba-file" accept=".csv,text/csv" style="display:none" onchange="baHandleFile(this.files[0]); this.value='';" />
@@ -186,7 +186,7 @@
     <p class="card-title">📅 Paso 2 — Seleccionar eventos <span id="ba-source-label" style="color:#0071e3;text-transform:none;font-weight:400;letter-spacing:0"></span></p>
     <div class="ba-settings">
       <div class="field"><label>Tipo</label>
-        <select id="ba-type" onchange="baRenderEvents(); baUpdatePreview();"><option value="music">Concierto</option><option value="sports">Partido</option></select>
+        <select id="ba-type" onchange="baTypeTouched = true; baRenderEvents(); baUpdatePreview();"><option value="sports">Fútbol / partido</option><option value="music">Concierto</option><option value="f1">Fórmula 1</option><option value="other">Otro evento</option></select>
       </div>
       <div class="field"><label>Título del producto (vacío = nombre de cada evento)</label><input type="text" id="ba-title-override" autocomplete="off" oninput="baRenderEvents(); baUpdatePreview();" /></div>
       <div class="field"><label>Competición / gira</label><input type="text" id="ba-competition" autocomplete="off" oninput="baUpdatePreview()" placeholder="Vacío = Concerts (en conciertos)" /></div>
@@ -851,6 +851,7 @@ const WEEKDAYS_SHORT = ['sun','mon','tue','wed','thu','fri','sat'];
 let baEvents = [];        // eventos normalizados
 let baSelected = new Set(); // ids seleccionados
 let baDiscarded = 0;
+let baTypeTouched = false; // si eliges el tipo a mano, el panel no lo vuelve a adivinar
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
 // ── Robots (guardados en el navegador) ────────────────────────────────────────
@@ -1003,6 +1004,10 @@ async function baLoadLatestTask() {
 // ── CSV ───────────────────────────────────────────────────────────────────────
 function baParseCSV(text) {
   text = text.replace(/^\uFEFF/, '');
+  // Detecta el separador: coma (Browse AI), punto y coma (Excel en español) o tabulador
+  const firstLine = text.split(/\r?\n/)[0] || '';
+  const count = ch => firstLine.split(ch).length - 1;
+  const sep = [',', ';', '\t'].sort((a, b) => count(b) - count(a))[0];
   const rows = []; let row = []; let field = ''; let q = false;
   for (let i = 0; i < text.length; i++) {
     const c = text[i];
@@ -1010,7 +1015,7 @@ function baParseCSV(text) {
       if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else q = false; }
       else field += c;
     } else if (c === '"') q = true;
-    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === sep) { row.push(field); field = ''; }
     else if (c === '\n' || c === '\r') {
       if (c === '\r' && text[i+1] === '\n') i++;
       row.push(field); field = ''; rows.push(row); row = [];
@@ -1029,18 +1034,41 @@ function baHandleFile(file) {
     try {
       const rows = baParseCSV(reader.result);
       if (!rows.length) throw new Error('El CSV está vacío');
-      baStatus(`✅ CSV "${esc(file.name)}" leído — ${rows.length} filas`, 'success');
       baLoadRows(rows, `desde CSV`);
+      if (!baEvents.length) {
+        const cols = Object.keys(rows[0]);
+        const need = ['name', 'venue', 'link', 'month', 'day'];
+        const missing = need.filter(f => !BA_ALIASES[f].some(a => cols.some(c => baNorm(c) === baNorm(a)))).map(f => BA_ALIASES[f][0]);
+        throw new Error(`Se leyeron ${rows.length} filas pero ningún evento válido. Columnas encontradas: ${cols.join(', ')}.${missing.length ? ' Faltan: ' + missing.join(', ') + '.' : ''}`);
+      }
+      baStatus(`✅ CSV "${esc(file.name)}" leído — ${rows.length} filas, ${baEvents.length} eventos`, 'success');
     } catch(e) { baStatus(`❌ ${esc(e.message)}`, 'error'); }
   };
   reader.onerror = () => baStatus('❌ No se pudo leer el archivo', 'error');
-  reader.readAsText(file);
+  reader.readAsText(file, 'UTF-8');
 }
 
 // ── Normalización de filas de Viagogo ─────────────────────────────────────────
-function baPick(row, ...keys) {
-  for (const k of keys) {
-    const found = Object.keys(row).find(x => x.trim().toLowerCase() === k.toLowerCase());
+// Cada robot puede nombrar las columnas a su manera ("Event Name" / "Event Title",
+// "Weekday" / "Day of Week", "Flag Image" / "Country Flag"...). Se comparan sin
+// mayúsculas, espacios ni símbolos, con una lista de alias por campo.
+const BA_ALIASES = {
+  name:  ['Event Name', 'Event Title', 'Title', 'Event', 'Name', 'Match', 'Partido', 'Evento'],
+  venue: ['Venue', 'Stadium', 'Estadio', 'Recinto'],
+  location: ['Location', 'City', 'Ubicacion', 'Ciudad'],
+  link:  ['Event Link', 'Event URL', 'Link', 'URL', 'Enlace'],
+  month: ['Month', 'Mes'],
+  day:   ['Day', 'Dia'],
+  weekday: ['Weekday', 'Day of Week', 'Dia de la semana', 'Dow'],
+  time:  ['Time', 'Hora'],
+  availability: ['Availability', 'Disponibilidad'],
+  flag:  ['Flag Image', 'Country Flag', 'Flag', 'Bandera']
+};
+const baNorm = s => String(s).toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '');
+function baPick(row, field) {
+  const keys = Object.keys(row);
+  for (const alias of BA_ALIASES[field]) {
+    const found = keys.find(x => baNorm(x) === baNorm(alias));
     if (found && row[found] != null && String(row[found]).trim() !== '') return String(row[found]).trim();
   }
   return '';
@@ -1072,14 +1100,14 @@ function baCleanLink(link) {
   try { const u = new URL(link); return u.origin + u.pathname; } catch(e) { return link; }
 }
 function baNormalizeRow(row, i) {
-  const name = baPick(row, 'Event Name', 'Title', 'Event');
-  const venue = baPick(row, 'Venue', 'Stadium');
-  const location = baPick(row, 'Location');
-  const link = baPick(row, 'Event Link', 'Link', 'URL');
+  const name = baPick(row, 'name');
+  const venue = baPick(row, 'venue');
+  const location = baPick(row, 'location');
+  const link = baPick(row, 'link');
   if (!name || !venue || !link) return null;
-  const d = baInferDate(baPick(row, 'Month'), baPick(row, 'Day'), baPick(row, 'Weekday'), baPick(row, 'Time'));
+  const d = baInferDate(baPick(row, 'month'), baPick(row, 'day'), baPick(row, 'weekday'), baPick(row, 'time'));
   if (!d) return null;
-  const flagUrl = baPick(row, 'Flag Image', 'Flag');
+  const flagUrl = baPick(row, 'flag');
   const fm = flagUrl.match(/\/([a-z]{2})\.svg/i);
   const code = fm ? fm[1].toUpperCase() : '';
   const parts = location.split(',').map(s => s.trim()).filter(Boolean);
@@ -1091,7 +1119,7 @@ function baNormalizeRow(row, i) {
     name, venue, city, code,
     country: code ? countryName(code) : (parts.length > 1 ? parts[parts.length - 1] : ''),
     dt: d.dt, timeKnown: d.timeKnown,
-    availability: baPick(row, 'Availability'),
+    availability: baPick(row, 'availability'),
     url
   };
 }
@@ -1111,6 +1139,13 @@ function baLoadRows(rows, label) {
   const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
   const titleEl = document.getElementById('ba-title-override');
   const allSame = names.length > 0 && counts[names[0]] >= baEvents.length / 2;
+  // Tipo sugerido según los nombres (puedes cambiarlo a mano en el desplegable)
+  const half = baEvents.length / 2;
+  const vsCount = baEvents.filter(e => /\s(vs\.?|v|-)\s/i.test(e.name)).length;
+  const f1Count = baEvents.filter(e => /grand prix|\bgp\b|formula\s?1|\bf1\b/i.test(e.name)).length;
+  const guess = f1Count > half ? 'f1' : vsCount > half ? 'sports' : 'music';
+  if (!baTypeTouched) document.getElementById('ba-type').value = guess;
+  if (document.getElementById('ba-type').value !== 'music') titleEl.value = '';
   if (!titleEl.value && allSame) titleEl.value = names[0];
   document.getElementById('ba-source-label').textContent = label;
   document.getElementById('ba-events-card').style.display = 'block';
@@ -1176,7 +1211,7 @@ function baBuildData(ev) {
       ? `Enjoy ${title}'s concert in ${ev.city}${ev.venue ? ` at ${ev.venue}` : ''} on ${dateStr}, buy the best tickets for ${title} at ${sitename}`
       : `Get the best ${title} tickets${ev.venue ? ` at ${ev.venue}` : ''} in ${ev.city} on ${dateStr}. Book now at ${sitename}.`,
     dateMeta: `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00-04:00`,
-    competition: document.getElementById('ba-competition').value.trim() || (isMusic ? 'Concerts' : ''),
+    competition: document.getElementById('ba-competition').value.trim() || ({ music: 'Concerts', f1: 'Formula 1' }[document.getElementById('ba-type').value] || ''),
     affUrl: baAffUrl(ev, sku),
     resolvedUrl: `https://viagogo.prf.hn/click/camref:${cleanField('vgg-camref') || VGG_CAMREF_DEFAULT}/pubref:Web/ar:${sku}/[p_id:${cleanField('vgg-pid') || VGG_PID_DEFAULT}]/destination:${encodeURIComponent(ev.url)}`,
     countryCode: ev.code || ev.country
