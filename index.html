@@ -92,6 +92,11 @@
   .sheet tbody tr:hover td { background: #f0f7ff; }
   .sheet .sheet-num { color: #aeaeb2; text-align: right; background: #fafafa; position: sticky; left: 0; }
   .sheet th.sheet-num { z-index: 2; }
+  .conflict-box { display: none; margin-top: 16px; background: #fff8e6; border: 1px solid #f5d27a; border-radius: 10px; padding: 14px; }
+  .conflict-title { font-weight: 600; font-size: 14px; color: #8a5a00; margin-bottom: 6px; }
+  .conflict-help { font-size: 12px; color: #6e6e73; margin-bottom: 12px; line-height: 1.5; }
+  .conflict-box .sheet-wrap { background: white; }
+  .conflict-select { border: 1px solid #d2d2d7; border-radius: 6px; padding: 5px 8px; font-size: 12px; background: white; }
   @media (max-width: 600px) { .grid3 { grid-template-columns: 1fr; } header { padding: 0 16px; } }
 </style>
 </head>
@@ -138,6 +143,7 @@
       <button class="btn-success" onclick="publishToShopify()" id="publish-btn">🚀 Publicar en Shopify</button>
       <button class="btn-secondary" onclick="deselectAllEvents()">Limpiar selección</button>
     </div>
+    <div class="conflict-box" id="conflict-box"></div>
     <div class="log-box" id="log-box"></div>
   </div>
 </div>
@@ -202,6 +208,7 @@
       <button class="btn-success" onclick="baPublishToShopify()" id="ba-publish-btn">🚀 Publicar en Shopify</button>
       <button class="btn-secondary" onclick="baDeselectAll()">Limpiar selección</button>
     </div>
+    <div class="conflict-box" id="ba-conflict-box"></div>
     <div class="log-box" id="ba-log-box"></div>
   </div>
 </div>
@@ -669,58 +676,168 @@ async function findExistingProduct(store, token, handle) {
 async function publishToShopify() {
   if (!selectedEvents.length) return;
   if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
-  const store = cleanField('shop-store');
-  const btn = document.getElementById('publish-btn');
-  btn.disabled = true;
-  btn.textContent = '⏳ Publicando...';
   document.getElementById('log-box').innerHTML = '';
+  const items = [];
+  for (const ev of selectedEvents) {
+    try { items.push({ label: ev.name, product: buildShopifyProduct(ev) }); }
+    catch(e) { log(`✗ Error preparando ${ev.name}: ${e.message}`, 'error'); }
+  }
+  await publishBatch({ key: 'tc', items, logFn: log, btnId: 'publish-btn', boxId: 'conflict-box' });
+}
+// ── MOTOR DE PUBLICACIÓN COMPARTIDO (Ticombo y Browse AI) ─────────────────────
+// Fase 1: comprueba cada handle en Shopify. Fase 2: publica.
+// Si el producto existe y es el mismo evento (misma fecha y misma fuente) se
+// actualiza. Si la fecha o la fuente no coinciden, NO se toca nada hasta que
+// decidas en el aviso de conflictos: saltar, actualizar o crear aparte.
+const pendingBatches = {};
+function sourceOfUrl(u) {
+  const s = String(u || '').toLowerCase();
+  if (s.includes('ticombo')) return 'Ticombo';
+  if (s.includes('viagogo')) return 'Viagogo';
+  return s ? 'otra' : 'desconocida';
+}
+function productMeta(product, key) {
+  const m = (product.product.metafields || []).find(x => x.key === key);
+  return m ? m.value : '';
+}
+function datedHandle(handle, dateMeta) {
+  const [y, m, d] = String(dateMeta).slice(0, 10).split('-').map(Number);
+  if (!y) return `${handle}-2`;
+  const suffix = `${d}-${MONTHS_EN[m - 1]}-${y}`;
+  if (handle.includes(suffix)) return `${handle}-2`; // conciertos: el handle ya lleva la fecha
+  const base = handle.replace(/-tickets$/, '');
+  return `${base}-${suffix}-tickets`;
+}
+async function getProductMetafields(store, token, id) {
+  const url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products/${id}/metafields.json?limit=50`)}&shopify_token=${encodeURIComponent(token)}`;
+  const res = await shopifyFetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  const data = await res.json();
+  return data.metafields || [];
+}
+function fmtDate(iso) { return iso ? String(iso).slice(0, 16).replace('T', ' ') : '—'; }
+
+async function publishBatch(cfg) {
+  // cfg: { key, items:[{label, product}], logFn, btnId, boxId }
+  const store = cleanField('shop-store');
+  const btn = document.getElementById(cfg.btnId);
+  const box = document.getElementById(cfg.boxId);
+  box.innerHTML = ''; box.style.display = 'none';
+  btn.disabled = true; btn.textContent = '⏳ Comprobando...';
   let token;
   try {
-    log('Obteniendo token de Shopify...');
+    cfg.logFn('Obteniendo token de Shopify...');
     token = await getShopifyToken();
-    log('✓ Token obtenido', 'success');
+    cfg.logFn('✓ Token obtenido', 'success');
   } catch(e) {
-    log(`✗ No se pudo obtener token de Shopify: ${e.message}`, 'error');
-    btn.disabled = false;
-    btn.textContent = '🚀 Publicar en Shopify';
+    cfg.logFn(`✗ No se pudo obtener token de Shopify: ${e.message}`, 'error');
+    btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify';
     return;
   }
-  let ok = 0, fail = 0;
-  for (let i = 0; i < selectedEvents.length; i++) {
-    const ev = selectedEvents[i];
+  // ── Fase 1: comprobación ──
+  const plan = [];
+  for (let i = 0; i < cfg.items.length; i++) {
+    const it = cfg.items[i];
+    const handle = it.product.product.handle;
+    const newDate = productMeta(it.product, 'date_and_time');
+    const newSource = sourceOfUrl(productMeta(it.product, 'viagogo_url'));
+    cfg.logFn(`[${i+1}/${cfg.items.length}] Comprobando "${it.label}"...`);
     try {
-      const product = buildShopifyProduct(ev);
-      const handle = product.product.handle;
-      log(`[${i+1}/${selectedEvents.length}] Comprobando si "${ev.name}" ya existe...`);
       const existing = await findExistingProduct(store, token, handle);
+      if (!existing) { plan.push({ ...it, action: 'create' }); continue; }
+      const mfs = await getProductMetafields(store, token, existing.id);
+      const oldDate = (mfs.find(m => m.key === 'date_and_time') || {}).value || '';
+      const oldSource = sourceOfUrl((mfs.find(m => m.key === 'viagogo_url') || {}).value);
+      const reasons = [];
+      if (oldDate && newDate && oldDate.slice(0, 10) !== newDate.slice(0, 10)) reasons.push(`fecha distinta: en tienda ${fmtDate(oldDate)}, nuevo ${fmtDate(newDate)}`);
+      if (oldSource !== newSource && oldSource !== 'desconocida') reasons.push(`otra fuente: en tienda ${oldSource}, nuevo ${newSource}`);
+      plan.push({ ...it, existing, action: reasons.length ? 'conflict' : 'update', reasons, newDate });
+      if (!reasons.length) cfg.logFn(`  → ya existe (ID ${existing.id}), mismo evento: se actualizará`);
+      else cfg.logFn(`  ⚠️ ya existe (ID ${existing.id}) y no coincide: ${reasons.join(' · ')}`, 'error');
+    } catch(e) {
+      plan.push({ ...it, action: 'error', error: e.message });
+      cfg.logFn(`✗ Error comprobando ${it.label}: ${e.message}`, 'error');
+    }
+  }
+  const conflicts = plan.filter(p => p.action === 'conflict');
+  if (!conflicts.length) return runBatch(cfg, plan, store, token);
+  // ── Aviso de conflictos: tú decides ──
+  pendingBatches[cfg.key] = { cfg, plan, store, token };
+  cfg.logFn(`⏸ ${conflicts.length} conflicto(s): elige qué hacer con cada uno antes de seguir`, 'error');
+  box.style.display = 'block';
+  box.innerHTML = `<div class="conflict-title">⚠️ ${conflicts.length} producto(s) ya existen en Shopify pero no parecen el mismo evento</div>
+    <div class="conflict-help">No se ha publicado nada todavía. <b>Saltar</b> deja el producto de la tienda como está. <b>Actualizar</b> lo sobrescribe con los datos nuevos. <b>Crear aparte</b> publica un producto nuevo con la fecha en el handle (útil para un segundo partido entre los mismos equipos).</div>
+    <div class="sheet-wrap"><table class="sheet"><thead><tr><th>Evento</th><th>Handle en tienda</th><th>Motivo</th><th>Qué hacer</th></tr></thead><tbody>
+    ${plan.map((p, i) => p.action !== 'conflict' ? '' : `<tr>
+      <td>${esc(p.label)}</td><td>${esc(p.product.product.handle)}</td>
+      <td style="white-space:normal;min-width:260px">${p.reasons.map(esc).join('<br>')}</td>
+      <td><select id="cf-${cfg.key}-${i}" class="conflict-select">
+        <option value="skip">Saltar</option>
+        <option value="update">Actualizar el existente</option>
+        <option value="separate">Crear aparte (${esc(datedHandle(p.product.product.handle, p.newDate))})</option>
+      </select></td></tr>`).join('')}
+    </tbody></table></div>
+    <div style="margin-top:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn-success" onclick="continueBatch('${cfg.key}')">Continuar publicación</button>
+      <button class="btn-secondary" onclick="cancelBatch('${cfg.key}')">Cancelar todo</button>
+    </div>`;
+  btn.textContent = '⏸ Esperando tu decisión';
+}
+function cancelBatch(key) {
+  const p = pendingBatches[key]; if (!p) return;
+  delete pendingBatches[key];
+  const box = document.getElementById(p.cfg.boxId);
+  box.style.display = 'none'; box.innerHTML = '';
+  p.cfg.logFn('✗ Publicación cancelada: no se ha tocado nada en Shopify', 'error');
+  const btn = document.getElementById(p.cfg.btnId);
+  btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify';
+}
+function continueBatch(key) {
+  const p = pendingBatches[key]; if (!p) return;
+  delete pendingBatches[key];
+  p.plan.forEach((item, i) => {
+    if (item.action !== 'conflict') return;
+    const sel = document.getElementById(`cf-${key}-${i}`);
+    item.action = sel ? sel.value : 'skip';
+  });
+  const box = document.getElementById(p.cfg.boxId);
+  box.style.display = 'none'; box.innerHTML = '';
+  runBatch(p.cfg, p.plan, p.store, p.token);
+}
+async function runBatch(cfg, plan, store, token) {
+  const btn = document.getElementById(cfg.btnId);
+  btn.disabled = true; btn.textContent = '⏳ Publicando...';
+  let created = 0, updated = 0, skipped = 0, fail = 0;
+  for (const p of plan) {
+    if (p.action === 'error') { fail++; continue; }
+    if (p.action === 'skip') { skipped++; cfg.logFn(`– Saltado: ${p.label}`); continue; }
+    try {
+      const product = JSON.parse(JSON.stringify(p.product));
+      let target = p.existing || null;
+      if (p.action === 'separate') {
+        product.product.handle = datedHandle(product.product.handle, p.newDate);
+        target = await findExistingProduct(store, token, product.product.handle);
+      }
+      if (p.action === 'create') target = null;
       let url, method;
-      if (existing) {
-        if (existing.variants && existing.variants[0]) {
-          product.product.variants[0].id = existing.variants[0].id;
-        }
-        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products/${existing.id}.json`)}&shopify_token=${encodeURIComponent(token)}`;
+      if (target) {
+        if (target.variants && target.variants[0]) product.product.variants[0].id = target.variants[0].id;
+        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products/${target.id}.json`)}&shopify_token=${encodeURIComponent(token)}`;
         method = 'PUT';
-        log(`  → ya existe (ID ${existing.id}), actualizando en vez de duplicar...`);
       } else {
         url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
         method = 'POST';
       }
-      const res = await shopifyFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product)
-      });
+      const res = await shopifyFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(product) });
       if (!res.ok) throw new Error(await res.text());
-      log(existing ? `✓ Actualizado: ${ev.name}` : `✓ Publicado: ${ev.name}`, 'success');
-      ok++;
+      if (target) { updated++; cfg.logFn(`✓ Actualizado: ${p.label}`, 'success'); }
+      else { created++; cfg.logFn(`✓ Publicado: ${p.label}${p.action === 'separate' ? ` (handle ${product.product.handle})` : ''}`, 'success'); }
     } catch(e) {
-      log(`✗ Error en ${ev.name}: ${e.message}`, 'error');
-      fail++;
+      fail++; cfg.logFn(`✗ Error en ${p.label}: ${e.message}`, 'error');
     }
   }
-  log(`--- Finalizado: ${ok} publicados, ${fail} errores ---`, ok > 0 ? 'success' : 'error');
-  btn.disabled = false;
-  btn.textContent = '🚀 Publicar en Shopify';
+  cfg.logFn(`--- Finalizado: ${created} creados, ${updated} actualizados, ${skipped} saltados, ${fail} errores ---`, fail ? 'error' : 'success');
+  btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify';
 }
 // ══ BROWSE AI / VIAGOGO ═══════════════════════════════════════════════════════
 // Pestaña independiente: no toca nada del flujo de Ticombo. Reutiliza solo la
@@ -1121,49 +1238,9 @@ async function baPublishToShopify() {
   const sel = baEvents.filter(e => baSelected.has(e.id));
   if (!sel.length) return;
   if (!shopifyConfigured()) { alert('Faltan datos de Shopify. Ve a ⚙️ Configuración.'); showPage('config'); return; }
-  const store = cleanField('shop-store');
-  const btn = document.getElementById('ba-publish-btn');
-  btn.disabled = true; btn.textContent = '⏳ Publicando...';
   document.getElementById('ba-log-box').innerHTML = '';
-  let token;
-  try {
-    baLog('Obteniendo token de Shopify...');
-    token = await getShopifyToken();
-    baLog('✓ Token obtenido', 'success');
-  } catch(e) {
-    baLog(`✗ No se pudo obtener token de Shopify: ${e.message}`, 'error');
-    btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify';
-    return;
-  }
-  let ok = 0, fail = 0;
-  for (let i = 0; i < sel.length; i++) {
-    const ev = sel[i];
-    const label = `${baTitle(ev)} — ${ev.city} ${ev.dt.toLocaleDateString('es-ES')}`;
-    try {
-      const product = baBuildShopifyProduct(ev);
-      baLog(`[${i+1}/${sel.length}] Comprobando si "${label}" ya existe...`);
-      const existing = await findExistingProduct(store, token, product.product.handle);
-      let url, method;
-      if (existing) {
-        if (existing.variants && existing.variants[0]) product.product.variants[0].id = existing.variants[0].id;
-        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products/${existing.id}.json`)}&shopify_token=${encodeURIComponent(token)}`;
-        method = 'PUT';
-        baLog(`  → ya existe (ID ${existing.id}), actualizando en vez de duplicar...`);
-      } else {
-        url = `${PROXY}/?url=${encodeURIComponent(`https://${store}/admin/api/2024-01/products.json`)}&shopify_token=${encodeURIComponent(token)}`;
-        method = 'POST';
-      }
-      const res = await shopifyFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(product) });
-      if (!res.ok) throw new Error(await res.text());
-      baLog(existing ? `✓ Actualizado: ${label}` : `✓ Publicado: ${label}`, 'success');
-      ok++;
-    } catch(e) {
-      baLog(`✗ Error en ${label}: ${e.message}`, 'error');
-      fail++;
-    }
-  }
-  baLog(`--- Finalizado: ${ok} publicados, ${fail} errores ---`, ok > 0 ? 'success' : 'error');
-  btn.disabled = false; btn.textContent = '🚀 Publicar en Shopify';
+  const items = sel.map(ev => ({ label: `${baTitle(ev)} — ${ev.city} ${ev.dt.toLocaleDateString('es-ES')}`, product: baBuildShopifyProduct(ev) }));
+  await publishBatch({ key: 'ba', items, logFn: baLog, btnId: 'ba-publish-btn', boxId: 'ba-conflict-box' });
 }
 function baInit() {
   baRenderRobots();
